@@ -19,6 +19,7 @@ def account():
     acc._client.get_current_chat = AsyncMock()
     acc._client.send_message_request = AsyncMock()
     acc._client.send_image_request = AsyncMock()
+    acc._client.ban_chat = AsyncMock()
     acc._parser.parse_chats_list = MagicMock()
     acc._parser.parse_chat = MagicMock()
     return acc
@@ -159,3 +160,35 @@ class TestSendImage:
         account._client.send_image_request.return_value = {"error": "400", "msg": "bad"}
         with pytest.raises(fpx_err.FpxMessageDeliverError):
             await manager.send_image("chat-1", "img-1")
+
+
+class TestBanChat:
+    @pytest.mark.asyncio
+    async def test_success_numeric_id(self, manager, account):
+        account._client.ban_chat.return_value = {"error": None}
+        result = await manager.ban_chat("257449748")
+        assert result is True
+        account._client.ban_chat.assert_awaited_once_with("257449748")
+        account._client.get_current_chat.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_success_resolves_users_node_name(self, manager, account):
+        account._client.get_current_chat.return_value = "<html></html>"
+        account._parser.parse_chat.return_value = {"data-id": "257449748"}
+        account._client.ban_chat.return_value = {"error": None}
+        result = await manager.ban_chat("users-2700698-19797153")
+        assert result is True
+        account._client.get_current_chat.assert_awaited_once_with("users-2700698-19797153")
+        account._client.ban_chat.assert_awaited_once_with("257449748")
+
+    @pytest.mark.asyncio
+    async def test_error_response_raises(self, manager, account):
+        account._client.ban_chat.return_value = {"error": "1", "msg": "Нужно авторизоваться"}
+        with pytest.raises(fpx_err.FpxBanChatError):
+            await manager.ban_chat("123")
+
+    @pytest.mark.asyncio
+    async def test_exception_wrapped(self, manager, account):
+        account._client.ban_chat.side_effect = Exception("boom")
+        with pytest.raises(fpx_err.FpxBanChatError):
+            await manager.ban_chat("123")

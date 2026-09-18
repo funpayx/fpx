@@ -147,6 +147,17 @@ class TestMessageEndpoints:
         _, kwargs = account._request_engine.execute.call_args
         assert '"image_id": "img-99"' in kwargs["data"]["request"]
 
+    @pytest.mark.asyncio
+    async def test_ban_chat_payload_and_headers(self, client, account):
+        account._request_engine.execute.return_value = make_response(json_data={"error": None})
+        result = await client.ban_chat("257449748")
+        assert result == {"error": None}
+        args, kwargs = account._request_engine.execute.call_args
+        assert args == ("POST", "/chat/mute")
+        assert kwargs["data"] == {"node_id": "257449748", "mute": 1}
+        assert kwargs["headers"]["X-Requested-With"] == "XMLHttpRequest"
+        assert kwargs["headers"]["Referer"] == "https://funpay.com/chat/?node=257449748"
+
 
 class TestLotRaising:
     @pytest.mark.asyncio

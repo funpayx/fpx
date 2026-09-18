@@ -111,6 +111,7 @@ class ChatParser(BaseParser):
             # парсинг тех.данных
         try:
             result["data-name"] = cls._get_str_attr(chat_div, "data-name")
+            result["data-id"] = cls._get_str_attr(chat_div, "data-id")
             app_data_str = cls._get_str_attr(body, "data-app-data", "{}") or "{}"
             app_data = json.loads(app_data_str)
             result["csrf-token"] = app_data.get("csrf-token", "")

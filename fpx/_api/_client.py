@@ -62,6 +62,21 @@ class FunPayClient:
         r = await self._account._request_engine.execute("GET", f"/chat/?node={chat_id}")
         return r.text
 
+    async def ban_chat(self, node_id: str | int, mute: int = 1) -> dict[str, Any]:
+        """
+        Блокирует или разблокирует чат.
+
+        FunPay выполняет это через POST /chat/mute — тот же запрос,
+        что и кнопка «Заблокировать» в шапке чата.
+        """
+        payload = {"node_id": node_id, "mute": mute}
+        headers = {
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": f"https://funpay.com/chat/?node={node_id}",
+        }
+        r = await self._account._request_engine.execute("POST", "/chat/mute", data=payload, headers=headers)
+        return r.json()
+
     async def get_user_profile(self, user_id: str | int) -> str:
         r = await self._account._request_engine.execute("GET", f"/users/{user_id}/")
         return r.text

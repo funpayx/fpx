@@ -393,6 +393,23 @@ Raises:
     FpxMessageNotDelivered: Если не удалось отправить сообщение.
 ```
 
+### `ChatManager.ban_chat`
+
+```
+Блокирует чат (кнопка «Заблокировать» в шапке чата FunPay).
+FunPay выполняет блокировку через POST /chat/mute с mute=1.
+
+Args:
+    chat_id (int | str): ID чата (node / data-id). Если передан
+        системный users-..., числовой data-id берётся со страницы чата.
+
+Returns:
+    bool: True если чат заблокирован.
+
+Raises:
+    FpxBanChatError: Не удалось заблокировать чат.
+```
+
 ### `FpxAccountError`
 
 ```
@@ -824,6 +841,12 @@ https://funpay.com/lots/offerEdit?node=...&offer=...
 
 ```
 Неправильно переданы аттрибуты.
+```
+
+### `FpxBanChatError`
+
+```
+Ошибка при блокировке чата.
 ```
 
 ### `FpxClientNotAttachedError`

@@ -101,6 +101,25 @@ await fp.account.chat.send_image("12345678", image_id)
 
 **Исключения:** `FpxMessageDeliverError`.
 
+### `await fp.account.chat.ban_chat(chat_id)`
+
+Блокирует чат — то же действие, что кнопка «Заблокировать» в шапке переписки.
+
+FunPay делает это через `POST /chat/mute` с `node_id` чата и `mute=1`.
+
+```python
+await fp.account.chat.ban_chat("12345678")
+```
+
+Если передан системный ID вида `users-123-456`, числовой `data-id` берётся со страницы чата.
+
+**Аргументы:**
+- `chat_id` (int | str) — ID чата (node / data-id).
+
+**Возвращает** `True` при успехе.
+
+**Исключения:** `FpxBanChatError`.
+
 ### `await fp.account.chat.get_chat_data(chat_id)`
 
 Получает технические данные чата (csrf_token, node_name, последнее сообщение).

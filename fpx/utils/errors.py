@@ -147,6 +147,13 @@ class FpxGetChatDataError(FpxAccountError):
         super().__init__(message)
 
 
+class FpxBanChatError(FpxAccountError):
+    """Ошибка при блокировке чата."""
+
+    def __init__(self, message: str = "Не удалось заблокировать чат") -> None:
+        super().__init__(message)
+
+
 class FpxGetLotEditorInfoError(FpxAccountError):
     """Ошибка запроса данных редактора лота"""
 

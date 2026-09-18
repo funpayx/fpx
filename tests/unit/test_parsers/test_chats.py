@@ -64,6 +64,7 @@ class TestChatParser:
         </body></html>
         """
         result = ChatParser.parse_chat(html)
+        assert result["data-id"] == "123"
         assert "messages" in result
         msgs = result["messages"]
         for msg in msgs:

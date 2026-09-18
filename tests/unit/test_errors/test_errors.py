@@ -36,6 +36,7 @@ class TestErrors:
             fpx_err.FpxGetGameIDError(),
             fpx_err.FpxGetLastCategoryLotError(),
             fpx_err.FpxGetChatDataError(),
+            fpx_err.FpxBanChatError(),
             fpx_err.FpxGetLotEditorInfoError(),
             fpx_err.FpxGetLotInfoError(),
             fpx_err.FpxGetOrderInfoError(),

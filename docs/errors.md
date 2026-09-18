@@ -21,6 +21,7 @@ FpxError
 │   ├── FpxGetGameIDError
 │   ├── FpxGetLastCategoryLotError
 │   ├── FpxGetChatDataError
+│   ├── FpxBanChatError
 │   ├── FpxGetLotEditorInfoError
 │   ├── FpxGetLotInfoError
 │   ├── FpxGetOrderInfoError
@@ -67,6 +68,7 @@ FpxError
 | `FpxGetGameIDError` | Не удалось получить `game_id` категории |
 | `FpxGetLastCategoryLotError` | Не удалось получить последний лот в категории |
 | `FpxGetChatDataError` | Не удалось получить технические данные чата |
+| `FpxBanChatError` | Не удалось заблокировать чат |
 | `FpxGetLotEditorInfoError` | Не удалось получить данные формы редактора лота |
 | `FpxGetLotInfoError` | Не удалось получить информацию о лоте |
 | `FpxGetOrderInfoError` | Не удалось получить информацию о заказе |

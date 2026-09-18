@@ -159,3 +159,37 @@ class ChatManager:
             error_code = response.get("error", "400")
             error_msg = response.get("msg", "Неизвестная ошибка")
             raise fpx_err.FpxMessageDeliverError(f"Сервер вернул ошибку: {error_code} - {error_msg}")
+
+    async def ban_chat(self, chat_id: int | str) -> bool:
+        """
+        Блокирует чат (кнопка «Заблокировать» в шапке чата FunPay).
+
+        FunPay выполняет блокировку через ``POST /chat/mute`` с ``mute=1``.
+
+        Args:
+            chat_id (int | str): ID чата (node / data-id). Если передан
+                системный ``users-...``, числовой ``data-id`` берётся со страницы чата.
+        Returns:
+            bool: True если чат заблокирован.
+        Raises:
+            FpxBanChatError: Не удалось заблокировать чат.
+        """
+        node_id = str(chat_id)
+        step = f"блокировка чата ID {chat_id}"
+        try:
+            if not node_id.isdigit():
+                step = f"запрос данных чата ID {chat_id}"
+                html = await self._account._client.get_current_chat(chat_id)
+                data = self._account._parser.parse_chat(html)
+                parsed_id = data.get("data-id")
+                if parsed_id:
+                    node_id = str(parsed_id)
+            step = f"POST запрос на блокировку чата ID {node_id}"
+            response = await self._account._client.ban_chat(node_id)
+        except Exception as e:
+            raise fpx_err.FpxBanChatError(f"Не удалось выполнить {step}. Ошибка: {e}")
+        if response.get("error") is None:
+            return True
+        error_code = response.get("error", "400")
+        error_msg = response.get("msg", "Неизвестная ошибка")
+        raise fpx_err.FpxBanChatError(f"Сервер вернул ошибку: {error_code} - {error_msg}")
