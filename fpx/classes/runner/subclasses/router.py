@@ -11,6 +11,13 @@ Decorator = Callable[[HandlerFunc], HandlerFunc]
 Middleware = Callable[[Any, Callable[[Any], Awaitable[Any]]], Awaitable[Any]]
 
 
+def _call_dependency(dep_func: Callable[..., Any], ev: Any) -> Any:
+    """Вызывает зависимость: без аргументов, если сигнатура пустая, иначе с event."""
+    if len(inspect.signature(dep_func).parameters) == 0:
+        return dep_func()
+    return dep_func(ev)
+
+
 class Router:
     def __init__(self) -> None:
         self._handlers: dict[str, list[Any]] = {
@@ -68,25 +75,18 @@ class Router:
                     continue
                 if isinstance(param.default, Dependency):
                     dep_func = param.default.dependency
-                    dep_sig = inspect.signature(dep_func)
                     if inspect.isasyncgenfunction(dep_func):
-                        gen = dep_func(ev)
+                        gen = _call_dependency(dep_func, ev)
                         try:
                             resolved_val = await anext(gen)
                             kwargs[param_name] = resolved_val
                             generators_to_close.append(gen)
                         except StopAsyncIteration:
                             pass
-                    elif len(dep_sig.parameters) == 0:
-                        if asyncio.iscoroutinefunction(dep_func):
-                            kwargs[param_name] = await dep_func(ev)
-                        else:
-                            kwargs[param_name] = dep_func(ev)
+                    elif asyncio.iscoroutinefunction(dep_func):
+                        kwargs[param_name] = await _call_dependency(dep_func, ev)
                     else:
-                        if asyncio.iscoroutinefunction(dep_func):
-                            kwargs[param_name] = await dep_func(ev)
-                        else:
-                            kwargs[param_name] = dep_func(ev)
+                        kwargs[param_name] = _call_dependency(dep_func, ev)
                     continue
                 if args and param.default is inspect.Parameter.empty:
                     if arg_index < len(args):
