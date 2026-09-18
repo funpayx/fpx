@@ -560,6 +560,39 @@ Raises:
     FpxRefundError: Не удалось сделать возврат.
 ```
 
+### `ProfileManager.get_telegram_connect_url`
+
+```
+Возвращает ссылку привязки Telegram-уведомлений (@funpaysmartbot).
+
+GET /account/linkTelegram — обычно редирект на t.me.
+
+Returns:
+    str: URL привязки Telegram (после редиректа или из HTML).
+Raises:
+    FpxAuthError: Неверные куки
+    FpxGetProfileError: Ошибка запроса ссылки привязки
+```
+
+### `ProfileManager.update_notice_channel`
+
+```
+Включает или выключает канал уведомлений аккаунта.
+
+POST /account/noticeChannel
+(channel: 1 email / 2 push / 3 telegram, active: 1/0).
+
+Args:
+    channel (int | str): Канал — 1/2/3 или email / push / telegram.
+    enabled (bool): True — включить, False — выключить.
+Returns:
+    bool: True если запрос успешен.
+Raises:
+    FpxValidateError: Неизвестный канал
+    FpxAuthError: Неверные куки
+    FpxGetProfileError: Ошибка обновления канала уведомлений
+```
+
 ### `ProfileManager.get_balance`
 
 ```
@@ -754,6 +787,12 @@ https://funpay.com/lots/offerEdit?node=...&offer=...
 
 ```
 Парсит https://funpay.com/orders/.../
+```
+
+### `ProfileParser.parse_telegram_connect_url`
+
+```
+Ищет ссылку привязки Telegram (@funpaysmartbot) в HTML /account/linkTelegram.
 ```
 
 ### `ProfileParser.parse_finanses`

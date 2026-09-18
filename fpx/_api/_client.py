@@ -32,6 +32,16 @@ class FunPayClient:
         r = await self._account._request_engine.execute("GET", "/account/balance")
         return r.text
 
+    async def get_telegram_connect_page(self) -> httpx.Response:
+        r = await self._account._request_engine.execute("GET", "/account/linkTelegram")
+        return r
+
+    async def update_notice_channel(self, channel: int | str, enabled: bool) -> Any:
+        payload = {"channel": channel, "active": int(bool(enabled))}
+        headers = {"X-Requested-With": "XMLHttpRequest"}
+        r = await self._account._request_engine.execute("POST", "/account/noticeChannel", data=payload, headers=headers)
+        return r
+
     async def send_message_request(self, node_name: str, last_msg: int, text: str) -> dict[str, Any]:
         request_data = {
             "action": "chat_message",

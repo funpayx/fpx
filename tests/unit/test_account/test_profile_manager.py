@@ -20,10 +20,13 @@ def account():
     acc._client.get_next_sells = AsyncMock()
     acc._client.get_user_profile = AsyncMock()
     acc._client.get_finance_page = AsyncMock()
+    acc._client.get_telegram_connect_page = AsyncMock()
+    acc._client.update_notice_channel = AsyncMock()
     acc._parser.parse_main_menu = MagicMock()
     acc._parser.parse_my_sells = MagicMock()
     acc._parser.parse_profile = MagicMock()
     acc._parser.parse_finanses = MagicMock()
+    acc._parser.parse_telegram_connect_url = MagicMock()
     return acc
 
 
@@ -200,3 +203,137 @@ class TestGetBalance:
         account._client.get_finance_page.side_effect = Exception("boom")
         with pytest.raises(fpx_err.FpxGetProfileError):
             await manager.get_balance()
+
+
+class TestGetTelegramConnectUrl:
+    @pytest.mark.asyncio
+    async def test_uses_redirect_url(self, manager, account):
+        response = MagicMock()
+        response.url = "https://t.me/funpaysmartbot?start=abc"
+        response.headers = {}
+        response.text = ""
+        account._client.get_telegram_connect_page.return_value = response
+        result = await manager.get_telegram_connect_url()
+        assert result == "https://t.me/funpaysmartbot?start=abc"
+        account._client.get_telegram_connect_page.assert_awaited_once()
+        account._parser.parse_telegram_connect_url.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_uses_location_header(self, manager, account):
+        response = MagicMock()
+        response.url = "https://funpay.com/account/linkTelegram"
+        response.headers = {"Location": "https://t.me/funpaysmartbot?start=from-header"}
+        response.text = ""
+        account._client.get_telegram_connect_page.return_value = response
+        result = await manager.get_telegram_connect_url()
+        assert result == "https://t.me/funpaysmartbot?start=from-header"
+        account._parser.parse_telegram_connect_url.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_parses_html_when_no_telegram_redirect(self, manager, account):
+        response = MagicMock()
+        response.url = "https://funpay.com/account/linkTelegram"
+        response.headers = {}
+        response.text = '<a href="https://t.me/funpaysmartbot?start=html">Telegram</a>'
+        account._client.get_telegram_connect_page.return_value = response
+        account._parser.parse_telegram_connect_url.return_value = "https://t.me/funpaysmartbot?start=html"
+        result = await manager.get_telegram_connect_url()
+        assert result == "https://t.me/funpaysmartbot?start=html"
+        account._parser.parse_telegram_connect_url.assert_called_once_with(response.text)
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_response_url(self, manager, account):
+        response = MagicMock()
+        response.url = "https://funpay.com/account/settings"
+        response.headers = {}
+        response.text = "<html></html>"
+        account._client.get_telegram_connect_page.return_value = response
+        account._parser.parse_telegram_connect_url.side_effect = fpx_err.FpxParseError("no link")
+        result = await manager.get_telegram_connect_url()
+        assert result == "https://funpay.com/account/settings"
+
+    @pytest.mark.asyncio
+    async def test_auth_error_reraised(self, manager, account):
+        account._client.get_telegram_connect_page.side_effect = fpx_err.FpxAuthError("bad cookies")
+        with pytest.raises(fpx_err.FpxAuthError):
+            await manager.get_telegram_connect_url()
+
+    @pytest.mark.asyncio
+    async def test_error_wrapped(self, manager, account):
+        account._client.get_telegram_connect_page.side_effect = Exception("boom")
+        with pytest.raises(fpx_err.FpxGetProfileError):
+            await manager.get_telegram_connect_url()
+
+    @pytest.mark.asyncio
+    async def test_empty_response_wrapped(self, manager, account):
+        response = MagicMock()
+        response.url = ""
+        response.headers = {}
+        response.text = ""
+        account._client.get_telegram_connect_page.return_value = response
+        account._parser.parse_telegram_connect_url.side_effect = fpx_err.FpxNullDataError("empty")
+        with pytest.raises(fpx_err.FpxGetProfileError):
+            await manager.get_telegram_connect_url()
+
+
+class TestUpdateNoticeChannel:
+    @pytest.mark.asyncio
+    async def test_enable_telegram_by_name(self, manager, account):
+        response = MagicMock()
+        response.status_code = 200
+        account._client.update_notice_channel.return_value = response
+        result = await manager.update_notice_channel("telegram", True)
+        assert result is True
+        account._client.update_notice_channel.assert_awaited_once_with(3, True)
+
+    @pytest.mark.asyncio
+    async def test_disable_email_by_id(self, manager, account):
+        response = MagicMock()
+        response.status_code = 200
+        account._client.update_notice_channel.return_value = response
+        result = await manager.update_notice_channel(1, False)
+        assert result is True
+        account._client.update_notice_channel.assert_awaited_once_with(1, False)
+
+    @pytest.mark.asyncio
+    async def test_accepts_string_channel_id(self, manager, account):
+        response = MagicMock()
+        response.status_code = 200
+        account._client.update_notice_channel.return_value = response
+        result = await manager.update_notice_channel("2", True)
+        assert result is True
+        account._client.update_notice_channel.assert_awaited_once_with(2, True)
+
+    @pytest.mark.asyncio
+    async def test_invalid_channel_raises_before_request(self, manager, account):
+        with pytest.raises(fpx_err.FpxValidateError):
+            await manager.update_notice_channel("sms", True)
+        with pytest.raises(fpx_err.FpxValidateError):
+            await manager.update_notice_channel(9, True)
+        account._client.update_notice_channel.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_bool_channel_is_rejected(self, manager, account):
+        with pytest.raises(fpx_err.FpxValidateError):
+            await manager.update_notice_channel(True, True)
+        account._client.update_notice_channel.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_non_200_response_raises(self, manager, account):
+        response = MagicMock()
+        response.status_code = 500
+        account._client.update_notice_channel.return_value = response
+        with pytest.raises(fpx_err.FpxGetProfileError):
+            await manager.update_notice_channel("push", False)
+
+    @pytest.mark.asyncio
+    async def test_auth_error_reraised(self, manager, account):
+        account._client.update_notice_channel.side_effect = fpx_err.FpxAuthError("Неверный gkey")
+        with pytest.raises(fpx_err.FpxAuthError):
+            await manager.update_notice_channel("telegram", True)
+
+    @pytest.mark.asyncio
+    async def test_error_wrapped(self, manager, account):
+        account._client.update_notice_channel.side_effect = Exception("boom")
+        with pytest.raises(fpx_err.FpxGetProfileError):
+            await manager.update_notice_channel(3, False)

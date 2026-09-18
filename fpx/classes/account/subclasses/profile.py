@@ -165,3 +165,109 @@ class ProfileManager:
         except Exception as e:
             raise fpx_err.FpxGetProfileError(f"При сборе баланса, выполняя {step} произошла ошибка: {e}")
         return cast(Balance, balance)
+
+    async def get_telegram_connect_url(self) -> str:
+        """
+        Возвращает ссылку привязки Telegram-уведомлений (@funpaysmartbot).
+
+        FunPay: GET /account/linkTelegram — обычно редирект на t.me.
+
+        Returns:
+            str: URL привязки Telegram (после редиректа или из HTML).
+        Raises:
+            FpxAuthError: Неверные куки
+            FpxGetProfileError: Ошибка запроса ссылки привязки
+        """
+        try:
+            step = "запроса данных FunPay"
+            response = await self._account._client.get_telegram_connect_page()
+            step = "извлечения ссылки"
+            url = self._extract_telegram_connect_url(response)
+        except fpx_err.FpxAuthError:
+            raise
+        except Exception as e:
+            raise fpx_err.FpxGetProfileError(f"При получении ссылки Telegram, выполняя {step} произошла ошибка: {e}")
+        return url
+
+    async def update_notice_channel(self, channel: int | str, enabled: bool) -> bool:
+        """
+        Включает или выключает канал уведомлений аккаунта.
+
+        FunPay: POST /account/noticeChannel
+        (``channel``: 1 email / 2 push / 3 telegram, ``active``: 1/0).
+
+        Args:
+            channel (int | str): Канал — 1/2/3 или ``email`` / ``push`` / ``telegram``.
+            enabled (bool): True — включить, False — выключить.
+        Returns:
+            bool: True если запрос успешен.
+        Raises:
+            FpxValidateError: Неизвестный канал
+            FpxAuthError: Неверные куки
+            FpxGetProfileError: Ошибка обновления канала уведомлений
+        """
+        channel_id = _resolve_notice_channel(channel)
+        try:
+            step = "запроса данных FunPay"
+            response = await self._account._client.update_notice_channel(channel_id, bool(enabled))
+            if getattr(response, "status_code", None) == 200:
+                return True
+            raise fpx_err.FpxRequestError(
+                f"Сервер не ответил успешно. Код ошибки: {getattr(response, 'status_code', 'unknown')}"
+            )
+        except fpx_err.FpxAuthError:
+            raise
+        except Exception as e:
+            raise fpx_err.FpxGetProfileError(
+                f"При обновлении канала уведомлений, выполняя {step} произошла ошибка: {e}"
+            )
+
+    def _extract_telegram_connect_url(self, response: Any) -> str:
+        url = str(getattr(response, "url", "") or "")
+        location = _header_value(getattr(response, "headers", None), "Location")
+        for candidate in (url, location):
+            if candidate and _is_telegram_connect_url(candidate):
+                return candidate
+        html = getattr(response, "text", "") or ""
+        try:
+            return cast(str, self._account._parser.parse_telegram_connect_url(html))
+        except (fpx_err.FpxNullDataError, fpx_err.FpxParseError):
+            if url:
+                return url
+            raise
+
+
+_NOTICE_CHANNEL_ALIASES: dict[str, int] = {
+    "email": 1,
+    "push": 2,
+    "telegram": 3,
+}
+
+
+def _resolve_notice_channel(channel: int | str) -> int:
+    if isinstance(channel, bool):
+        raise fpx_err.FpxValidateError(f"Неизвестный канал уведомлений: {channel}")
+    if isinstance(channel, int):
+        if channel in (1, 2, 3):
+            return channel
+        raise fpx_err.FpxValidateError(f"Неизвестный канал уведомлений: {channel}")
+    key = str(channel).strip().lower()
+    if key.isdigit():
+        return _resolve_notice_channel(int(key))
+    if key in _NOTICE_CHANNEL_ALIASES:
+        return _NOTICE_CHANNEL_ALIASES[key]
+    raise fpx_err.FpxValidateError(f"Неизвестный канал уведомлений: {channel}")
+
+
+def _is_telegram_connect_url(url: str) -> bool:
+    lowered = url.lower()
+    return "t.me/" in lowered or "telegram.me/" in lowered or "telegram.org/" in lowered
+
+
+def _header_value(headers: Any, name: str) -> str:
+    if not headers:
+        return ""
+    getter = getattr(headers, "get", None)
+    if getter is None:
+        return ""
+    return str(getter(name) or getter(name.lower()) or "")

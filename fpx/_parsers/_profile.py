@@ -14,8 +14,23 @@ from ._base import BaseParser
 
 logger = logging.getLogger("fpx.profile_parser")
 
+_TELEGRAM_CONNECT_URL_RE = re.compile(
+    r"https?://(?:t\.me|telegram\.me|telegram\.org)/[^\s\"'<>]+",
+    re.IGNORECASE,
+)
+
 
 class ProfileParser(BaseParser):
+    @classmethod
+    def parse_telegram_connect_url(cls, html_content: str) -> str:
+        """Ищет ссылку привязки Telegram (@funpaysmartbot) в HTML /account/linkTelegram."""
+        if not html_content or not str(html_content).strip():
+            raise fpx_err.FpxNullDataError("Страница привязки Telegram пустая")
+        match = _TELEGRAM_CONNECT_URL_RE.search(str(html_content))
+        if not match:
+            raise fpx_err.FpxParseError("На странице привязки Telegram не найдена ссылка t.me")
+        return match.group(0)
+
     @classmethod
     def parse_finanses(cls, html_content: str) -> Balance:
         """Парсит https://funpay.com/account/balance"""

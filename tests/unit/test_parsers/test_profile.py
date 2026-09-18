@@ -28,6 +28,26 @@ class TestProfileParser:
         with pytest.raises(fpx_err.FpxNullDataError):
             ProfileParser.parse_finanses("<html><body>Пусто</body></html>")
 
+    def test_parse_telegram_connect_url_from_anchor(self):
+        html = """
+        <html><body>
+          <a href="https://t.me/funpaysmartbot?start=token123">Привязать Telegram</a>
+        </body></html>
+        """
+        assert ProfileParser.parse_telegram_connect_url(html) == "https://t.me/funpaysmartbot?start=token123"
+
+    def test_parse_telegram_connect_url_telegram_me(self):
+        html = '<a href="https://telegram.me/funpaysmartbot?start=abc">link</a>'
+        assert ProfileParser.parse_telegram_connect_url(html) == "https://telegram.me/funpaysmartbot?start=abc"
+
+    def test_parse_telegram_connect_url_empty_raises(self):
+        with pytest.raises(fpx_err.FpxNullDataError):
+            ProfileParser.parse_telegram_connect_url("   ")
+
+    def test_parse_telegram_connect_url_missing_link_raises(self):
+        with pytest.raises(fpx_err.FpxParseError):
+            ProfileParser.parse_telegram_connect_url("<html><body>Нет ссылки</body></html>")
+
     def test_parse_profile_success(self):
         """Профиль: лоты + отзывы."""
         html = """

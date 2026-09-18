@@ -50,6 +50,14 @@ class TestSimpleGetEndpoints:
         account._request_engine.execute.assert_awaited_once_with("GET", "/account/balance")
 
     @pytest.mark.asyncio
+    async def test_get_telegram_connect_page(self, client, account):
+        response = make_response(text="telegram-html")
+        account._request_engine.execute.return_value = response
+        result = await client.get_telegram_connect_page()
+        assert result is response
+        account._request_engine.execute.assert_awaited_once_with("GET", "/account/linkTelegram")
+
+    @pytest.mark.asyncio
     async def test_get_current_chat(self, client, account):
         account._request_engine.execute.return_value = make_response(text="chat-html")
         result = await client.get_current_chat("123")
@@ -189,6 +197,26 @@ class TestOrderAndReviewEndpoints:
         args, kwargs = account._request_engine.execute.call_args
         assert args == ("POST", "/orders/review")
         assert kwargs["data"] == {"authorId": "author-1", "text": "спасибо", "rating": "", "orderId": "order-1"}
+
+
+class TestUpdateNoticeChannel:
+    @pytest.mark.asyncio
+    async def test_enable_posts_active_one(self, client, account):
+        response = make_response(status_code=200)
+        account._request_engine.execute.return_value = response
+        result = await client.update_notice_channel(3, True)
+        assert result is response
+        args, kwargs = account._request_engine.execute.call_args
+        assert args == ("POST", "/account/noticeChannel")
+        assert kwargs["data"] == {"channel": 3, "active": 1}
+        assert kwargs["headers"]["X-Requested-With"] == "XMLHttpRequest"
+
+    @pytest.mark.asyncio
+    async def test_disable_posts_active_zero(self, client, account):
+        account._request_engine.execute.return_value = make_response(status_code=200)
+        await client.update_notice_channel(1, False)
+        _, kwargs = account._request_engine.execute.call_args
+        assert kwargs["data"] == {"channel": 1, "active": 0}
 
 
 class TestEditAndCreateLot:
