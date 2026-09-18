@@ -85,6 +85,14 @@ class FunPayTools:
     ) -> None:
         await self.shutdown()
 
+    @property
+    def polling_task(self) -> asyncio.Task[Any] | None:
+        """Фоновая задача `Runner.start_polling`, если polling запущен в фоне."""
+        runner = getattr(self, "runner", None)
+        if runner is None:
+            return None
+        return runner.polling_task
+
     async def shutdown(self) -> None:
         if self._refresh_task and not self._refresh_task.done():
             self._refresh_task.cancel()
@@ -92,7 +100,7 @@ class FunPayTools:
                 await self._refresh_task
             except asyncio.CancelledError:
                 pass
-        if hasattr(self, "runner") and self.runner.is_running:
-            self.runner.is_running = False
+        if hasattr(self, "runner"):
+            await self.runner.stop_polling()
         if self._client and not self._client.is_closed:
             await self._client.aclose()

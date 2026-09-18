@@ -243,11 +243,12 @@ async def flood_handler(seconds):
 
 ### `@fp.router.on_error()`
 
-Ловит ошибки при обработке команд сообщений.
+Ловит ошибки при обработке событий и критические сбои polling (`FpxCriticalRunnerError`).
+Для сбоя цикла `event` будет `None`.
 
 ```python
 @fp.router.on_error()
-async def error_handler(message, error):
+async def error_handler(event, error):
     print(f"Ошибка: {error}")
 ```
 

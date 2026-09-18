@@ -74,7 +74,7 @@ FpxError
 | `FpxGetUserSellsError` | Не удалось получить список продаж |
 | `FpxGetProfileError` | Не удалось получить данные профиля |
 | `FpxNullDataError` | Парсер получил пустую страницу (слетела сессия/изменилась вёрстка) |
-| `FpxCriticalRunnerError` | Критический сбой раннера |
+| `FpxCriticalRunnerError` | Критический сбой раннера (логируется, уходит в `on_error`, останавливает polling) |
 | `FpxAttributeError` | Неправильно переданы атрибуты в хендлер |
 | `FpxCommandArgsError` | В команде не хватает аргументов |
 

@@ -28,6 +28,7 @@ class TestRunnerInit:
         assert runner.is_running is True
         assert runner._cache_is_updated is False
         assert runner.storage is None
+        assert runner.polling_task is None
 
     def test_subrunners_reference_self(self, runner):
         assert runner._chat.runner is runner
@@ -139,6 +140,15 @@ class TestHandleError:
     async def test_no_handlers_does_not_raise(self, runner):
         await runner._handle_error(None, ValueError("boom"))
 
+    @pytest.mark.asyncio
+    async def test_handler_exception_is_logged_and_does_not_raise(self, runner, caplog):
+        @runner.router.on_error()
+        async def on_error(event, exc):
+            raise RuntimeError("handler crashed")
+
+        await runner._handle_error(None, ValueError("boom"))
+        assert "on_error" in caplog.text
+
 
 class TestRunLoop:
     @pytest.mark.asyncio
@@ -203,8 +213,59 @@ class TestRunLoop:
             raise ValueError("unexpected")
 
         runner._cache_runner = cache_runner
+        with pytest.raises(fpx_err.FpxCriticalRunnerError) as exc_info:
+            await runner._run_loop(1)
+        assert isinstance(exc_info.value.__cause__, ValueError)
+        assert runner.is_running is False
+
+    @pytest.mark.asyncio
+    async def test_unknown_exception_goes_to_on_error_and_is_logged(self, runner, caplog):
+        seen = []
+
+        @runner.router.on_error()
+        async def on_error(event, exc):
+            seen.append((event, exc, exc.__cause__))
+
+        async def cache_runner(*args):
+            raise TypeError("parser broken")
+
+        runner._cache_runner = cache_runner
         with pytest.raises(fpx_err.FpxCriticalRunnerError):
             await runner._run_loop(1)
+
+        assert len(seen) == 1
+        event, exc, cause = seen[0]
+        assert event is None
+        assert isinstance(exc, fpx_err.FpxCriticalRunnerError)
+        assert isinstance(cause, TypeError)
+        assert "parser broken" in str(exc)
+        assert "Критическая ошибка polling" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_critical_error_is_not_rewrapped(self, runner):
+        original = fpx_err.FpxCriticalRunnerError("already critical")
+
+        async def cache_runner(*args):
+            raise original
+
+        runner._cache_runner = cache_runner
+        with pytest.raises(fpx_err.FpxCriticalRunnerError) as exc_info:
+            await runner._run_loop(1)
+        assert exc_info.value is original
+
+    @pytest.mark.asyncio
+    async def test_on_error_failure_still_raises_critical(self, runner):
+        @runner.router.on_error()
+        async def on_error(event, exc):
+            raise RuntimeError("handler crashed")
+
+        async def cache_runner(*args):
+            raise ValueError("unexpected")
+
+        runner._cache_runner = cache_runner
+        with pytest.raises(fpx_err.FpxCriticalRunnerError) as exc_info:
+            await runner._run_loop(1)
+        assert isinstance(exc_info.value.__cause__, ValueError)
 
 
 class TestStartPolling:
@@ -213,6 +274,7 @@ class TestStartPolling:
         runner._run_loop = AsyncMock()
         task = await runner.start_polling(timer=1, is_background=True)
         assert isinstance(task, asyncio.Task)
+        assert runner.polling_task is task
         task.cancel()
         try:
             await task
@@ -224,6 +286,95 @@ class TestStartPolling:
         runner._run_loop = AsyncMock()
         await runner.start_polling(timer=1, is_background=False)
         runner._run_loop.assert_awaited_once_with(1, None, None)
+
+    @pytest.mark.asyncio
+    async def test_second_background_start_returns_same_task(self, runner):
+        async def hang(*args, **kwargs):
+            await asyncio.sleep(3600)
+
+        runner._run_loop = hang
+        first = await runner.start_polling(timer=1, is_background=True)
+        second = await runner.start_polling(timer=1, is_background=True)
+        assert first is second
+        await runner.stop_polling()
+        assert first.cancelled() or first.done()
+
+    @pytest.mark.asyncio
+    async def test_background_unknown_error_reaches_on_error_and_is_retrieved(self, runner):
+        loop = asyncio.get_running_loop()
+        contexts: list[dict] = []
+        previous_handler = loop.get_exception_handler()
+
+        def exception_handler(_loop, context):
+            contexts.append(context)
+
+        loop.set_exception_handler(exception_handler)
+
+        async def cache_runner(*args):
+            raise TypeError("parser broken")
+
+        runner._cache_runner = cache_runner
+        seen = []
+
+        @runner.router.on_error()
+        async def on_error(event, exc):
+            seen.append((event, exc, exc.__cause__))
+
+        try:
+            task = await runner.start_polling(timer=0.01, is_background=True)
+            assert runner.polling_task is task
+            for _ in range(100):
+                if task.done():
+                    break
+                await asyncio.sleep(0)
+            assert task.done()
+            await asyncio.sleep(0)
+
+            assert seen
+            event, exc, cause = seen[0]
+            assert event is None
+            assert isinstance(exc, fpx_err.FpxCriticalRunnerError)
+            assert isinstance(cause, TypeError)
+            assert runner.is_running is False
+
+            stored = task.exception()
+            assert isinstance(stored, fpx_err.FpxCriticalRunnerError)
+            assert not any("never retrieved" in str(ctx.get("message", "")).lower() for ctx in contexts)
+        finally:
+            loop.set_exception_handler(previous_handler)
+
+
+class TestStopPolling:
+    @pytest.mark.asyncio
+    async def test_stop_polling_cancels_background_task(self, runner):
+        async def hang(*args, **kwargs):
+            await asyncio.sleep(3600)
+
+        runner._run_loop = hang
+        task = await runner.start_polling(timer=10, is_background=True)
+        await runner.stop_polling()
+        assert task.done()
+        assert runner.is_running is False
+
+    @pytest.mark.asyncio
+    async def test_stop_polling_without_task_only_sets_flag(self, runner):
+        runner.is_running = True
+        await runner.stop_polling()
+        assert runner.is_running is False
+
+    @pytest.mark.asyncio
+    async def test_stop_polling_swallows_critical_error_from_finished_task(self, runner):
+        async def cache_runner(*args):
+            raise TypeError("parser broken")
+
+        runner._cache_runner = cache_runner
+        task = await runner.start_polling(timer=0.01, is_background=True)
+        for _ in range(100):
+            if task.done():
+                break
+            await asyncio.sleep(0)
+        await runner.stop_polling()
+        assert runner.is_running is False
 
 
 class TestIdle:

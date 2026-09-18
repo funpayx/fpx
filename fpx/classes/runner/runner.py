@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from typing import Any, Optional
 
 import httpx
@@ -10,6 +11,8 @@ from fpx.classes.runner.subclasses._purchase import PurchaseRunner
 from fpx.classes.runner.subclasses._review import ReviewRunner
 from fpx.classes.runner.subclasses.router import Router
 from fpx.utils import errors as fpx_err
+
+logger = logging.getLogger("fpx.runner")
 
 
 class Runner:
@@ -41,6 +44,8 @@ class Runner:
         }
         self._cache_is_updated = False
         self.is_running = True
+        self._polling_task: asyncio.Task[None] | None = None
+        self._polling_error_reported = False
 
     async def idle(self) -> None:
         """
@@ -68,7 +73,15 @@ class Runner:
             except (httpx.HTTPError, httpx.NetworkError):
                 await asyncio.sleep(timer)
             except Exception as e:
-                raise fpx_err.FpxCriticalRunnerError(message=str(e))
+                critical = await self._report_critical_failure(e)
+                if e is critical:
+                    raise
+                raise critical from e
+
+    @property
+    def polling_task(self) -> asyncio.Task[None] | None:
+        """Фоновая задача polling, если `start_polling` запущен с `is_background=True`."""
+        return self._polling_task
 
     async def start_polling(
         self,
@@ -90,13 +103,76 @@ class Runner:
             watch_chips (list): Можно не передавать.
                 Список категорий чипсов(коротких лотов под валюты),
                 которые будет проверять скрипт.
+
+        Returns:
+            asyncio.Task | None: Фоновая задача (сохраняется в `polling_task`)
+                либо None, если polling запущен в текущей корутине.
+
+        Note:
+            Неизвестные ошибки оборачиваются в `FpxCriticalRunnerError`,
+            прокидываются в `on_error` и логируются. Повторный вызов
+            при уже работающей фоновой задаче возвращает её же.
         """
+        if is_background and self._polling_task is not None and not self._polling_task.done():
+            return self._polling_task
+
+        self.is_running = True
+        self._polling_error_reported = False
         if is_background:
-            task = asyncio.create_task(self._run_loop(timer, watch_lots, watch_chips))
+            task = asyncio.create_task(
+                self._run_loop(timer, watch_lots, watch_chips),
+                name="fpx-polling",
+            )
+            self._polling_task = task
+            task.add_done_callback(self._on_polling_done)
             return task
+        await self._run_loop(timer, watch_lots, watch_chips)
+        return None
+
+    async def stop_polling(self) -> None:
+        """Останавливает цикл polling и отменяет фоновую задачу, если она есть."""
+        self.is_running = False
+        task = self._polling_task
+        if task is None:
+            return
+        if not task.done():
+            task.cancel()
+        try:
+            await task
+        except (asyncio.CancelledError, fpx_err.FpxCriticalRunnerError):
+            pass
+        except Exception:
+            logger.exception("Ошибка при ожидании остановки polling")
+
+    def _on_polling_done(self, task: asyncio.Task[None]) -> None:
+        """Забирает исключение у фоновой задачи, чтобы оно не терялось в asyncio."""
+        self.is_running = False
+        if task.cancelled():
+            logger.debug("Фоновая задача polling отменена")
+            return
+        exc = task.exception()
+        if exc is not None and not self._polling_error_reported:
+            logger.error(
+                "Фоновая задача polling завершилась с необработанным исключением: %s",
+                exc,
+                exc_info=exc,
+            )
+
+    async def _report_critical_failure(self, exc: Exception) -> fpx_err.FpxCriticalRunnerError:
+        """Логирует критический сбой и отдаёт его в on_error, затем возвращает обёртку."""
+        self.is_running = False
+        self._polling_error_reported = True
+        logger.error("Критическая ошибка polling: %s", exc, exc_info=exc)
+        if isinstance(exc, fpx_err.FpxCriticalRunnerError):
+            critical = exc
         else:
-            await self._run_loop(timer, watch_lots, watch_chips)
-            return None
+            critical = fpx_err.FpxCriticalRunnerError(message=str(exc))
+            critical.__cause__ = exc
+        try:
+            await self._handle_error(None, critical)
+        except Exception:
+            logger.exception("Не удалось прокинуть ошибку polling в on_error")
+        return critical
 
     async def _warm_up(self, watch_lots: list[str | int] | None, watch_chips: list[str | int] | None) -> None:
         """Прогрев кеша"""
@@ -162,11 +238,16 @@ class Runner:
         """Централизованная обработка любых ошибок.
         event может быть Message, Order, Review или None.
         Советую проверять через if isinstanse(exception, fpx_err...)
+        Ошибка в самом on_error-хендлере логируется и не валит цикл polling.
         """
         error_handlers = self.router._handlers.get("error", [])
         for handler in error_handlers:
-            if handler:
+            if not handler:
+                continue
+            try:
                 if asyncio.iscoroutinefunction(handler):
                     await handler(event, exception)
                 else:
                     handler(event, exception)
+            except Exception:
+                logger.exception("Ошибка в on_error хендлере")
