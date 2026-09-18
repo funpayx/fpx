@@ -560,6 +560,20 @@ Raises:
     FpxRefundError: Не удалось сделать возврат.
 ```
 
+### `ProfileManager.check_banned`
+
+```
+Проверяет, заблокирован ли текущий аккаунт.
+
+GET /account/blocked: 200 — бан, 404 — бана нет.
+
+Returns:
+    bool: True если аккаунт заблокирован.
+Raises:
+    FpxAuthError: Неверные куки
+    FpxGetProfileError: Ошибка проверки бана
+```
+
 ### `ProfileManager.get_balance`
 
 ```

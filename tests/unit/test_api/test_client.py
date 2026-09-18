@@ -50,6 +50,14 @@ class TestSimpleGetEndpoints:
         account._request_engine.execute.assert_awaited_once_with("GET", "/account/balance")
 
     @pytest.mark.asyncio
+    async def test_get_blocked_page(self, client, account):
+        response = make_response(status_code=404)
+        account._request_engine.execute.return_value = response
+        result = await client.get_blocked_page()
+        assert result is response
+        account._request_engine.execute.assert_awaited_once_with("GET", "/account/blocked")
+
+    @pytest.mark.asyncio
     async def test_get_current_chat(self, client, account):
         account._request_engine.execute.return_value = make_response(text="chat-html")
         result = await client.get_current_chat("123")

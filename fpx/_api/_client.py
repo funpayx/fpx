@@ -32,6 +32,10 @@ class FunPayClient:
         r = await self._account._request_engine.execute("GET", "/account/balance")
         return r.text
 
+    async def get_blocked_page(self) -> httpx.Response:
+        r = await self._account._request_engine.execute("GET", "/account/blocked")
+        return r
+
     async def send_message_request(self, node_name: str, last_msg: int, text: str) -> dict[str, Any]:
         request_data = {
             "action": "chat_message",

@@ -61,6 +61,17 @@ print(f"{balance.eur} €")
 
 Возвращает `Balance`.
 
+### `await fp.account.profile.check_banned()`
+
+Проверяет, заблокирован ли текущий аккаунт. FunPay отвечает `200` на `/account/blocked` при бане и `404`, если бана нет.
+
+```python
+if await fp.account.profile.check_banned():
+    print("Аккаунт заблокирован")
+```
+
+Возвращает `bool`.
+
 ---
 
 ## Альтернативный доступ через `fpx.services`
