@@ -18,6 +18,7 @@ def account():
     acc._client.get_node_editor_data = AsyncMock()
     acc._client.create_lot = AsyncMock()
     acc._client.raise_lot = AsyncMock()
+    acc._client.set_offers_hidden = AsyncMock()
     acc._parser.parse_edit_lot_page = MagicMock()
     acc._parser.parse_current_lot_menu = MagicMock()
     acc._parser.parse_create_lot_page = MagicMock()
@@ -25,6 +26,7 @@ def account():
     acc.profile.profile = AsyncMock()
     acc.addons.get_game_id = AsyncMock()
     acc.data._csrf_token = "tok"
+    acc.data.user_id = "42"
     return acc
 
 
@@ -195,3 +197,68 @@ class TestCreateLot:
         account._client.create_lot.return_value = response
         with pytest.raises(fpx_err.FpxLotCreateError):
             await manager.create_lot(fields)
+
+
+class TestSetOffersHidden:
+    @pytest.mark.asyncio
+    async def test_hide_success(self, manager, account):
+        response = MagicMock()
+        response.status_code = 200
+        account._client.set_offers_hidden.return_value = response
+        result = await manager.set_offers_hidden(True)
+        assert result is True
+        account._client.set_offers_hidden.assert_awaited_once_with("42", True)
+        account.profile.get_user_data.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_show_success(self, manager, account):
+        response = MagicMock()
+        response.status_code = 200
+        account._client.set_offers_hidden.return_value = response
+        result = await manager.set_offers_hidden(False)
+        assert result is True
+        account._client.set_offers_hidden.assert_awaited_once_with("42", False)
+
+    @pytest.mark.asyncio
+    async def test_fetches_user_id_if_missing(self, manager, account):
+        account.data.user_id = None
+
+        async def _fill_user_id():
+            account.data.user_id = "99"
+
+        account.profile.get_user_data = AsyncMock(side_effect=_fill_user_id)
+        response = MagicMock()
+        response.status_code = 200
+        account._client.set_offers_hidden.return_value = response
+        result = await manager.set_offers_hidden(True)
+        assert result is True
+        account.profile.get_user_data.assert_awaited_once()
+        account._client.set_offers_hidden.assert_awaited_once_with("99", True)
+
+    @pytest.mark.asyncio
+    async def test_missing_user_id_after_fetch_raises(self, manager, account):
+        account.data.user_id = None
+        account.profile.get_user_data = AsyncMock()
+        with pytest.raises(fpx_err.FpxLotEditingError):
+            await manager.set_offers_hidden(True)
+        account._client.set_offers_hidden.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_non_200_response_raises(self, manager, account):
+        response = MagicMock()
+        response.status_code = 500
+        account._client.set_offers_hidden.return_value = response
+        with pytest.raises(fpx_err.FpxLotEditingError):
+            await manager.set_offers_hidden(True)
+
+    @pytest.mark.asyncio
+    async def test_auth_error_reraised(self, manager, account):
+        account._client.set_offers_hidden.side_effect = fpx_err.FpxAuthError("Неверный gkey")
+        with pytest.raises(fpx_err.FpxAuthError):
+            await manager.set_offers_hidden(True)
+
+    @pytest.mark.asyncio
+    async def test_error_wrapped(self, manager, account):
+        account._client.set_offers_hidden.side_effect = Exception("boom")
+        with pytest.raises(fpx_err.FpxLotEditingError):
+            await manager.set_offers_hidden(False)

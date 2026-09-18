@@ -178,3 +178,33 @@ class LotManager:
                 raise fpx_err.FpxRequestError(f"Сервер не ответил успешно. Код ошибки: {response.status_code}")
         except Exception as e:
             raise fpx_err.FpxLotCreateError(f"При создании лота произошла ошибка: {e}")
+
+    async def set_offers_hidden(self, hidden: bool) -> bool:
+        """
+        Массово скрывает или показывает все лоты аккаунта.
+
+        FunPay: POST /trade/tradeLockSettings
+        (`userId` текущего аккаунта, `mode=1` скрыть / `mode=0` показать).
+
+        Args:
+            hidden (bool): True — скрыть все лоты, False — показать.
+        Returns:
+            bool: True если запрос успешен.
+        Raises:
+            FpxAuthError: Неверные куки
+            FpxLotEditingError: Не удалось изменить видимость лотов
+        """
+        if not self._account.data.user_id:
+            await self._account.profile.get_user_data()
+        user_id = self._account.data.user_id
+        if not user_id:
+            raise fpx_err.FpxLotEditingError("Не удалось получить ID пользователя")
+        try:
+            response = await self._account._client.set_offers_hidden(user_id, hidden)
+            if response.status_code == 200:
+                return True
+            raise fpx_err.FpxRequestError(f"Сервер не ответил успешно. Код ошибки: {response.status_code}")
+        except fpx_err.FpxAuthError:
+            raise
+        except Exception as e:
+            raise fpx_err.FpxLotEditingError(f"При изменении видимости лотов произошла ошибка: {e}")

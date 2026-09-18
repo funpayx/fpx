@@ -1,6 +1,6 @@
 # Лоты и поднятие
 
-Получение информации о лотах и автоподнятие.
+Получение информации о лотах, автоподнятие и массовое скрытие/показ.
 
 ---
 
@@ -50,6 +50,17 @@ asyncio.create_task(auto_raise())
 await fp.runner.start_polling(3, is_background=True)
 await fp.runner.idle()
 ```
+
+### `await fp.account.lot.set_offers_hidden(hidden)`
+
+Массово скрывает или показывает все лоты аккаунта (trade lock FunPay: `POST /trade/tradeLockSettings`).
+
+```python
+await fp.account.lot.set_offers_hidden(True)   # скрыть все лоты
+await fp.account.lot.set_offers_hidden(False)  # показать все лоты
+```
+
+Возвращает `True` при успешном запросе. Если `user_id` ещё не закеширован — сначала запросит данные профиля. При ошибке кинет `FpxLotEditingError` (неверные куки — `FpxAuthError`).
 
 ---
 

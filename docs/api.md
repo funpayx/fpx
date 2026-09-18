@@ -494,6 +494,22 @@ Raises:
     FpxRaisingLotError: Лот не поднят.
 ```
 
+### `LotManager.set_offers_hidden`
+
+```
+Массово скрывает или показывает все лоты аккаунта.
+
+POST /trade/tradeLockSettings: userId текущего аккаунта, mode=1 скрыть / mode=0 показать.
+
+Args:
+    hidden (bool): True — скрыть все лоты, False — показать.
+Returns:
+    bool: True если запрос успешен.
+Raises:
+    FpxAuthError: Неверные куки
+    FpxLotEditingError: Не удалось изменить видимость лотов
+```
+
 ### `OrderManager.get_order_details`
 
 ```

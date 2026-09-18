@@ -158,6 +158,14 @@ class FunPayClient:
         r = await self._account._request_engine.execute("POST", "/lots/offerSave", data=payload, headers=headers)
         return r
 
+    async def set_offers_hidden(self, user_id: str | int, hidden: bool) -> Any:
+        payload = {"userId": user_id, "mode": int(hidden)}
+        headers = {"X-Requested-With": "XMLHttpRequest"}
+        r = await self._account._request_engine.execute(
+            "POST", "/trade/tradeLockSettings", data=payload, headers=headers
+        )
+        return r
+
     async def answer_review(self, authorid: str, text: str, orderid: str) -> Any:
         payload = {"authorId": authorid, "text": text, "rating": "", "orderId": orderid}
         headers = {"X-Requested-With": "XMLHttpRequest"}

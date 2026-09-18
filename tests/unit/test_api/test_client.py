@@ -246,6 +246,26 @@ class TestEditAndCreateLot:
         assert "query" not in kwargs["data"]
 
 
+class TestSetOffersHidden:
+    @pytest.mark.asyncio
+    async def test_hide_posts_mode_one(self, client, account):
+        response = make_response(status_code=200)
+        account._request_engine.execute.return_value = response
+        result = await client.set_offers_hidden("42", True)
+        assert result is response
+        args, kwargs = account._request_engine.execute.call_args
+        assert args == ("POST", "/trade/tradeLockSettings")
+        assert kwargs["data"] == {"userId": "42", "mode": 1}
+        assert kwargs["headers"]["X-Requested-With"] == "XMLHttpRequest"
+
+    @pytest.mark.asyncio
+    async def test_show_posts_mode_zero(self, client, account):
+        account._request_engine.execute.return_value = make_response(status_code=200)
+        await client.set_offers_hidden(7, False)
+        _, kwargs = account._request_engine.execute.call_args
+        assert kwargs["data"] == {"userId": 7, "mode": 0}
+
+
 class TestDirectHttpClientEndpoints:
     @pytest.mark.asyncio
     async def test_upload_image(self, client, http_client):
