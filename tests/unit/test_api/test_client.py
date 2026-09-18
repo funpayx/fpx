@@ -190,6 +190,17 @@ class TestOrderAndReviewEndpoints:
         assert args == ("POST", "/orders/review")
         assert kwargs["data"] == {"authorId": "author-1", "text": "спасибо", "rating": "", "orderId": "order-1"}
 
+    @pytest.mark.asyncio
+    async def test_delete_review(self, client, account):
+        response = make_response(status_code=200)
+        account._request_engine.execute.return_value = response
+        result = await client.delete_review("author-1", "order-1")
+        assert result is response
+        args, kwargs = account._request_engine.execute.call_args
+        assert args == ("POST", "/orders/reviewDelete")
+        assert kwargs["data"] == {"authorId": "author-1", "orderId": "order-1"}
+        assert kwargs["headers"] == {"X-Requested-With": "XMLHttpRequest"}
+
 
 class TestEditAndCreateLot:
     @pytest.mark.asyncio

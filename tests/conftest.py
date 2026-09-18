@@ -11,6 +11,7 @@ def mock_client():
     client = MagicMock()
     client._account.chat.send_message = AsyncMock(return_value=True)
     client._account.review.review_answer = AsyncMock(return_value=True)
+    client._account.review.delete_review = AsyncMock(return_value=True)
     client._account.order.refund_order = AsyncMock(return_value=True)
     return client
 

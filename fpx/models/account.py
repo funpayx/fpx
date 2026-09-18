@@ -64,6 +64,12 @@ class CurReview:
         )
         return cast(bool, await self._client._account.chat.send_message(self.order.chat_id, formatted_reply))
 
+    async def delete(self) -> bool:
+        """Удалить отзыв или ответ на отзыв"""
+        if not self._client:
+            raise fpx_err.FpxClientNotAttachedError("Объект CurReview не привязан к клиенту fpx")
+        return cast(bool, await self._client._account.review.delete_review(self.order_id))
+
 
 @dataclass
 class Profile:

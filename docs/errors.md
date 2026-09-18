@@ -17,6 +17,7 @@ FpxError
 │   ├── FpxRequestError
 │   ├── FpxLotEditingError
 │   ├── FpxAnswerReviewError
+│   ├── FpxDeleteReviewError
 │   ├── FpxClientNotAttachedError
 │   ├── FpxGetGameIDError
 │   ├── FpxGetLastCategoryLotError
@@ -63,6 +64,7 @@ FpxError
 | `FpxRequestError` | Сеть упала, сервер не ответил, превышены попытки |
 | `FpxLotEditingError` | Цена не поменялась после редактирования |
 | `FpxAnswerReviewError` | Ответ на отзыв не сохранился |
+| `FpxDeleteReviewError` | Отзыв или ответ на отзыв не удалось удалить |
 | `FpxClientNotAttachedError` | Попытка вызвать `.answer()` у объекта без привязки к клиенту |
 | `FpxGetGameIDError` | Не удалось получить `game_id` категории |
 | `FpxGetLastCategoryLotError` | Не удалось получить последний лот в категории |

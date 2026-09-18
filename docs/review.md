@@ -1,6 +1,6 @@
 # Отзывы
 
-Отслеживание новых отзывов, ответ на них, написание автору в чат.
+Отслеживание новых отзывов, ответ на них, удаление ответа, написание автору в чат.
 
 ---
 
@@ -49,9 +49,12 @@ async def bad_review(review: types.CurReview):
 
 **`await review.message_author(message_text: str)`** — написать автору отзыва в чат заказа. Форматирование то же самое.
 
+**`await review.delete()`** — удалить свой отзыв или ответ на отзыв. Не требует объект заказа, достаточно `order_id`.
+
 ```python
 await review.answer("Спасибо, {author}!")
 await review.message_author("{author}, спасибо за {stars} звёзд!")
+await review.delete()
 ```
 
 ---
@@ -80,6 +83,16 @@ await fp.account.review.review_answer("ABC123", "Спасибо!")
 ```
 
 Возвращает `True` при успехе.
+
+### `await fp.account.review.delete_review(order_id)`
+
+Удалить свой отзыв или ответ на отзыв по ID заказа. FunPay принимает `POST /orders/reviewDelete` с `authorId` текущего аккаунта и `orderId`.
+
+```python
+await fp.account.review.delete_review("ABC123")
+```
+
+Возвращает `True` при успехе. При ошибке кидает `FpxDeleteReviewError`.
 
 ---
 

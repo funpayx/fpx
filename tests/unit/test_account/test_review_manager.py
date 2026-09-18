@@ -1,4 +1,4 @@
-"""Тесты ReviewManager — получение отзыва заказа и ответ на отзыв."""
+"""Тесты ReviewManager — получение отзыва заказа, ответ и удаление отзыва."""
 
 from unittest.mock import AsyncMock, MagicMock
 
@@ -15,6 +15,7 @@ def account():
     acc.data.user_id = "1"
     acc.order.get_order_details = AsyncMock()
     acc._client.answer_review = AsyncMock()
+    acc._client.delete_review = AsyncMock()
     acc.profile.get_user_data = AsyncMock()
     return acc
 
@@ -83,3 +84,55 @@ class TestReviewAnswer:
         account._client.answer_review.return_value = response
         with pytest.raises(fpx_err.FpxAnswerReviewError):
             await manager.review_answer("order-1", "текст")
+
+
+class TestDeleteReview:
+    @pytest.mark.asyncio
+    async def test_success(self, manager, account):
+        response = MagicMock()
+        response.json.return_value = {"content": '<div class="review-container"></div>'}
+        account._client.delete_review.return_value = response
+        result = await manager.delete_review("order-1")
+        assert result is True
+        account._client.delete_review.assert_awaited_once_with("1", "order-1")
+
+    @pytest.mark.asyncio
+    async def test_fetches_user_id_if_missing(self, manager, account):
+        account.data.user_id = None
+
+        async def fake_get_user_data():
+            account.data.user_id = "42"
+
+        account.profile.get_user_data.side_effect = fake_get_user_data
+        response = MagicMock()
+        response.json.return_value = {"content": ""}
+        account._client.delete_review.return_value = response
+        await manager.delete_review("order-1")
+        account.profile.get_user_data.assert_awaited_once()
+        account._client.delete_review.assert_awaited_once_with("42", "order-1")
+
+    @pytest.mark.asyncio
+    async def test_json_decode_error_raises(self, manager, account):
+        import json
+
+        response = MagicMock()
+        response.json.side_effect = json.JSONDecodeError("msg", "doc", 0)
+        account._client.delete_review.return_value = response
+        with pytest.raises(fpx_err.FpxDeleteReviewError, match="Сервер не вернул ничего"):
+            await manager.delete_review("order-1")
+
+    @pytest.mark.asyncio
+    async def test_missing_content_raises(self, manager, account):
+        response = MagicMock()
+        response.json.return_value = {"ok": True}
+        account._client.delete_review.return_value = response
+        with pytest.raises(fpx_err.FpxDeleteReviewError):
+            await manager.delete_review("order-1")
+
+    @pytest.mark.asyncio
+    async def test_error_response_with_msg_raises_with_msg(self, manager, account):
+        response = MagicMock()
+        response.json.return_value = {"msg": "Нельзя удалить отзыв"}
+        account._client.delete_review.return_value = response
+        with pytest.raises(fpx_err.FpxDeleteReviewError, match="Нельзя удалить отзыв"):
+            await manager.delete_review("order-1")

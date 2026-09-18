@@ -32,6 +32,7 @@ class TestErrors:
             fpx_err.FpxRequestError(),
             fpx_err.FpxLotEditingError(),
             fpx_err.FpxAnswerReviewError(),
+            fpx_err.FpxDeleteReviewError(),
             fpx_err.FpxClientNotAttachedError(),
             fpx_err.FpxGetGameIDError(),
             fpx_err.FpxGetLastCategoryLotError(),
@@ -64,3 +65,8 @@ class TestErrors:
     def test_client_not_attached_is_account_error(self):
         err = fpx_err.FpxClientNotAttachedError()
         assert isinstance(err, fpx_err.FpxAccountError)
+
+    def test_delete_review_error_is_account_error(self):
+        err = fpx_err.FpxDeleteReviewError()
+        assert isinstance(err, fpx_err.FpxAccountError)
+        assert str(err)

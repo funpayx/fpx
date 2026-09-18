@@ -83,6 +83,7 @@
 **Методы:**
 - `await review.answer(answer_text)` — ответ на отзыв в профиле. Поддерживает `{author}`, `{order_id}`, `{order_name}`, `{order_time}`, `{stars}`
 - `await review.message_author(message_text)` — написать автору в чат
+- `await review.delete()` — удалить свой отзыв или ответ на отзыв
 
 ---
 

@@ -108,6 +108,16 @@ class TestAccountModels:
         mock_client._account.review.review_answer.assert_awaited_once()
 
     @pytest.mark.asyncio
+    async def test_cur_review_delete_with_mock_client(self):
+        review = CurReview(text="OK", stars=5, author="User", order_id="99")
+        mock_client = MagicMock()
+        mock_client._account.review.delete_review = AsyncMock(return_value=True)
+        review._client = mock_client
+        result = await review.delete()
+        assert result is True
+        mock_client._account.review.delete_review.assert_awaited_once_with("99")
+
+    @pytest.mark.asyncio
     async def test_cur_review_answer_keeps_literal_braces(self):
         order = Order(order_id="99", name="Товар", order_time="12:00")
         review = CurReview(text="OK", stars=5, author="User", order_id="99", order=order)

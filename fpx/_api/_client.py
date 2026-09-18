@@ -164,6 +164,14 @@ class FunPayClient:
         response = await self._account._request_engine.execute("POST", "/orders/review", data=payload, headers=headers)
         return response
 
+    async def delete_review(self, authorid: str, orderid: str) -> Any:
+        payload = {"authorId": authorid, "orderId": orderid}
+        headers = {"X-Requested-With": "XMLHttpRequest"}
+        response = await self._account._request_engine.execute(
+            "POST", "/orders/reviewDelete", data=payload, headers=headers
+        )
+        return response
+
     async def get_chip_category(self, chip_category_id: str | int) -> str:
         r = await self._account._request_engine.execute("GET", f"/chips/{chip_category_id}/")
         return r.text
