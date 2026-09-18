@@ -73,7 +73,7 @@ async def refunded(order: types.Order):
 | `client_name` | `str` | Ник покупателя |
 | `price` | `float` | Цена |
 | `amount` | `int` | Количество |
-| `status` | `str` | Статус (Оплачен, Закрыт, Возврат) |
+| `status` | `str` | Статус (Оплачен / Paid / Відкрито, Закрыт / Closed / Закрито, Возврат / Refunded / Повернення) |
 | `name` | `str` | Название товара |
 | `category` | `str` | Категория |
 | `review` | `dict` | Отзыв (если есть) |

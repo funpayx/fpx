@@ -125,6 +125,16 @@ class TestRefundOrder:
         result = await manager.refund_order("order-1")
         assert result is True
 
+    @pytest.mark.parametrize("status", ["Refunded", "Повернення", "Заказ #123 / Возврат", "Order #ABC / Refunded"])
+    @pytest.mark.asyncio
+    async def test_success_localized_refund_status(self, manager, account, status):
+        response = MagicMock()
+        response.status_code = 200
+        account._client.refund_order.return_value = response
+        manager.get_order_details = AsyncMock(return_value=Order(status=status))
+        result = await manager.refund_order("order-1")
+        assert result is True
+
     @pytest.mark.asyncio
     async def test_wrong_status_after_refund_raises(self, manager, account):
         response = MagicMock()

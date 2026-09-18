@@ -168,6 +168,48 @@ class TestTriggerOrderHandlers:
         await purchase_runner._trigger_order_handlers(order)
         assert called == [order]
 
+    @pytest.mark.parametrize(
+        "status",
+        ["Refunded", "refund", "Повернення", "Order #ABC / Refunded", "Заказ #123 / Возврат"],
+    )
+    @pytest.mark.asyncio
+    async def test_refund_locales_trigger_refund_handlers(self, purchase_runner, runner, status):
+        called = []
+
+        @runner.router.on_refunded_purchase()
+        async def handler(order: Purchase):
+            called.append(order)
+
+        order = Purchase(order_id="1", status=status)
+        await purchase_runner._trigger_order_handlers(order)
+        assert called == [order]
+
+    @pytest.mark.parametrize("status", ["Paid", "Відкрито", "Order #ABC / Paid"])
+    @pytest.mark.asyncio
+    async def test_paid_locales_trigger_new_purchase_handlers(self, purchase_runner, runner, status):
+        called = []
+
+        @runner.router.on_new_purchase()
+        async def handler(order: Purchase):
+            called.append(order)
+
+        order = Purchase(order_id="1", status=status)
+        await purchase_runner._trigger_order_handlers(order)
+        assert called == [order]
+
+    @pytest.mark.parametrize("status", ["Closed", "Закрито", "Order #ABC / Closed"])
+    @pytest.mark.asyncio
+    async def test_closed_locales_trigger_confirmed_purchase_handlers(self, purchase_runner, runner, status):
+        called = []
+
+        @runner.router.on_confirmed_purchases()
+        async def handler(order: Purchase):
+            called.append(order)
+
+        order = Purchase(order_id="1", status=status)
+        await purchase_runner._trigger_order_handlers(order)
+        assert called == [order]
+
     @pytest.mark.asyncio
     async def test_on_purchases_always_triggered_regardless_of_status(self, purchase_runner, runner):
         called = []

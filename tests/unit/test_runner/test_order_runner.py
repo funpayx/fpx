@@ -184,6 +184,70 @@ class TestTriggerOrderHandlers:
         await order_runner._trigger_order_handlers(order)
         assert called == [order]
 
+    @pytest.mark.parametrize(
+        "status",
+        ["Refunded", "refund", "Повернення", "Order #ABC / Refunded", "Заказ #123 / Возврат"],
+    )
+    @pytest.mark.asyncio
+    async def test_refund_locales_trigger_refund_handlers(self, order_runner, runner, status):
+        called = []
+
+        @runner.router.on_refunded_orders()
+        async def handler(order: Order):
+            called.append(order)
+
+        order = Order(order_id="1", status=status)
+        await order_runner._trigger_order_handlers(order)
+        assert called == [order]
+
+    @pytest.mark.parametrize("status", ["Paid", "Відкрито", "Order #ABC / Paid"])
+    @pytest.mark.asyncio
+    async def test_paid_locales_trigger_new_order_handlers(self, order_runner, runner, status):
+        called = []
+
+        @runner.router.on_new_order()
+        async def handler(order: Order):
+            called.append(order)
+
+        order = Order(order_id="1", status=status)
+        await order_runner._trigger_order_handlers(order)
+        assert called == [order]
+
+    @pytest.mark.parametrize("status", ["Closed", "Закрито", "Order #ABC / Closed"])
+    @pytest.mark.asyncio
+    async def test_closed_locales_trigger_confirmed_order_handlers(self, order_runner, runner, status):
+        called = []
+
+        @runner.router.on_confirmed_orders()
+        async def handler(order: Order):
+            called.append(order)
+
+        order = Order(order_id="1", status=status)
+        await order_runner._trigger_order_handlers(order)
+        assert called == [order]
+
+    @pytest.mark.asyncio
+    async def test_refunded_does_not_trigger_paid_or_closed(self, order_runner, runner):
+        paid, closed, refunded = [], [], []
+
+        @runner.router.on_new_order()
+        async def on_paid(order: Order):
+            paid.append(order)
+
+        @runner.router.on_confirmed_orders()
+        async def on_closed(order: Order):
+            closed.append(order)
+
+        @runner.router.on_refunded_orders()
+        async def on_refund(order: Order):
+            refunded.append(order)
+
+        order = Order(order_id="1", status="Refunded")
+        await order_runner._trigger_order_handlers(order)
+        assert paid == []
+        assert closed == []
+        assert refunded == [order]
+
     @pytest.mark.asyncio
     async def test_on_orders_always_triggered_regardless_of_status(self, order_runner, runner):
         called = []

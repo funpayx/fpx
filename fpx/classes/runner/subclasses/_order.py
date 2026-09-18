@@ -4,6 +4,7 @@ from typing import Any
 
 from fpx.fsm import FSMContext
 from fpx.models.account import Order
+from fpx.utils.order_status import OrderStatusKind, classify_order_status
 
 logger = logging.getLogger("fpx.order_runner")
 
@@ -79,21 +80,21 @@ class OrderRunner:
 
     async def _trigger_order_handlers(self, order: Order) -> None:
         state_ctx = FSMContext(self.runner.storage, order.chat_id) if order.chat_id else None
-        status = order.status.lower() if order.status else order.status
+        kind = classify_order_status(order.status)
         for handler in self.runner.router._handlers["order"]:
             if await self._check_handler(handler, order, state_ctx):
                 pass
-        if status in ("закрыт", "closed", "закрито"):
+        if kind is OrderStatusKind.CLOSED:
             for handler in self.runner.router._handlers["confirmed_order"]:
                 if await self._check_handler(handler, order, state_ctx):
                     pass
-        elif status in ("оплачен", "оплачено", "paid", "відкрито"):
+        elif kind is OrderStatusKind.PAID:
             for handler in self.runner.router._handlers["new_order"]:
                 if await self._check_handler(handler, order, state_ctx):
                     pass
             if await self._check_trigger_for_command(order, state_ctx):
                 pass
-        elif status in ("возврат", "повернення", "refund"):
+        elif kind is OrderStatusKind.REFUNDED:
             for handler in self.runner.router._handlers["refund"]:
                 if await self._check_handler(handler, order, state_ctx):
                     pass

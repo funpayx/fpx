@@ -2,6 +2,7 @@ from typing import Any
 
 from fpx.models.account import Order
 from fpx.utils import errors as fpx_err
+from fpx.utils.order_status import is_refunded_status
 
 
 class OrderManager:
@@ -129,7 +130,7 @@ class OrderManager:
         if response.status_code == 200:
             s = await self.get_order_details(order_id)
             status = s.status
-            if status == "Возврат":
+            if is_refunded_status(status):
                 return True
             raise fpx_err.FpxRefundError(f"Невозможно сделать возврат, текущий статус: {status}")
         return None
