@@ -48,8 +48,9 @@ class ReviewManager:
         except json.JSONDecodeError:
             raise fpx_err.FpxAnswerReviewError("Сервер не вернул ничего")
         try:
-            if text in response["content"]:
-                return True
-            raise fpx_err.FpxAnswerReviewError(message="Ответ не сохранился")
+            saved = text in response["content"]
         except Exception:
             raise fpx_err.FpxAnswerReviewError(message=response.get("msg") if response.get("msg") else response)
+        if saved:
+            return True
+        raise fpx_err.FpxAnswerReviewError(message="Ответ не сохранился")
