@@ -1,7 +1,15 @@
 import asyncio
 from typing import Any, cast
 
-from fpx.models.account import Balance, CurReview, Order, Profile, UserData
+from fpx.models.account import (
+    Balance,
+    CurReview,
+    Order,
+    Profile,
+    Transaction,
+    TransactionsPage,
+    UserData,
+)
 from fpx.models.lots import LotInfo
 from fpx.utils import errors as fpx_err
 
@@ -165,3 +173,85 @@ class ProfileManager:
         except Exception as e:
             raise fpx_err.FpxGetProfileError(f"При сборе баланса, выполняя {step} произошла ошибка: {e}")
         return cast(Balance, balance)
+
+    async def get_transactions_page(
+        self,
+        from_transaction_id: str | int | None = None,
+        filter: str = "",
+    ) -> TransactionsPage:
+        """
+        Одна страница истории транзакций.
+
+        Без фильтра и курсора — ``GET /account/balance`` (первая пачка).
+        Иначе — ``POST /users/transactions`` (как FunPay API).
+
+        Args:
+            from_transaction_id (str | int | None): Курсор ``continue`` для следующей пачки.
+            filter (str): Фильтр FunPay: ``""``, ``payment``, ``withdraw``, ``order``, ``other``.
+        Returns:
+            TransactionsPage: Пачка транзакций и курсор ``next_transaction_id``.
+        Raises:
+            FpxAuthError: Неверные куки
+            FpxGetProfileError: Ошибка запроса истории транзакций
+        """
+        needs_post = bool(filter) or (from_transaction_id not in (None, "", 0, "0"))
+        user_id = None
+        if needs_post:
+            user_id = self._account.data.user_id
+            if not user_id:
+                user_data = await self.get_user_data()
+                user_id = user_data.user_id
+        try:
+            step = "запроса данных FunPay"
+            if needs_post:
+                html = await self._account._client.get_transactions(
+                    user_id=user_id,
+                    filter=filter,
+                    from_transaction_id=from_transaction_id or "",
+                )
+            else:
+                html = await self._account._client.get_transactions_page()
+            step = "парсинга данных"
+            page = self._account._parser.parse_transactions(html)
+            if page.user_id and not self._account.data.user_id:
+                self._account.data.user_id = page.user_id
+        except fpx_err.FpxAuthError:
+            raise
+        except Exception as e:
+            raise fpx_err.FpxGetProfileError(f"При получении транзакций, выполняя {step} произошла ошибка: {e}")
+        return cast(TransactionsPage, page)
+
+    async def get_transactions(
+        self,
+        limit: int = 0,
+        filter: str = "",
+        from_transaction_id: str | int | None = None,
+    ) -> list[Transaction]:
+        """
+        История транзакций аккаунта. Пагинирует страницы FunPay.
+
+        Args:
+            limit (int): Сколько операций вернуть (0 — все доступные).
+            filter (str): Фильтр FunPay: ``""``, ``payment``, ``withdraw``, ``order``, ``other``.
+            from_transaction_id (str | int | None): Начать с этой пачки (курсор ``continue``).
+        Returns:
+            list[Transaction]: Список операций (тип, сумма, дата и др.).
+        Raises:
+            FpxAuthError: Неверные куки
+            FpxGetProfileError: Ошибка запроса истории транзакций
+        """
+        collected: list[Transaction] = []
+        cursor = from_transaction_id
+        first = True
+        while True:
+            if not first:
+                await asyncio.sleep(3)
+            first = False
+            page = await self.get_transactions_page(from_transaction_id=cursor, filter=filter)
+            collected.extend(page.transactions)
+            if limit != 0 and len(collected) >= limit:
+                return collected[:limit]
+            next_id = page.next_transaction_id
+            if not next_id or str(next_id) == str(cursor or ""):
+                return collected
+            cursor = next_id

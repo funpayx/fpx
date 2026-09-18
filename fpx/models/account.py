@@ -16,6 +16,31 @@ class Balance:
 
 
 @dataclass
+class Transaction:
+    """Одна операция из истории баланса FunPay."""
+
+    transaction_id: str
+    type: str
+    amount: float
+    date: str
+    description: str = ""
+    status: str = "unknown"
+    currency: str = ""
+    payment_method: Optional[str] = None
+    withdrawal_number: Optional[str] = None
+
+
+@dataclass
+class TransactionsPage:
+    """Одна пачка истории транзакций и курсор пагинации."""
+
+    transactions: list[Transaction] = field(default_factory=list)
+    next_transaction_id: Optional[str] = None
+    user_id: Optional[str] = None
+    filter: Optional[str] = None
+
+
+@dataclass
 class Calc:
     type_name: str
     price: str

@@ -50,6 +50,13 @@ class TestSimpleGetEndpoints:
         account._request_engine.execute.assert_awaited_once_with("GET", "/account/balance")
 
     @pytest.mark.asyncio
+    async def test_get_transactions_page(self, client, account):
+        account._request_engine.execute.return_value = make_response(text="tx-html")
+        result = await client.get_transactions_page()
+        assert result == "tx-html"
+        account._request_engine.execute.assert_awaited_once_with("GET", "/account/balance")
+
+    @pytest.mark.asyncio
     async def test_get_current_chat(self, client, account):
         account._request_engine.execute.return_value = make_response(text="chat-html")
         result = await client.get_current_chat("123")
@@ -189,6 +196,23 @@ class TestOrderAndReviewEndpoints:
         args, kwargs = account._request_engine.execute.call_args
         assert args == ("POST", "/orders/review")
         assert kwargs["data"] == {"authorId": "author-1", "text": "спасибо", "rating": "", "orderId": "order-1"}
+
+    @pytest.mark.asyncio
+    async def test_get_transactions_posts_users_transactions(self, client, account):
+        account._request_engine.execute.return_value = make_response(text="tx-batch")
+        result = await client.get_transactions("42", filter="order", from_transaction_id="101010")
+        assert result == "tx-batch"
+        args, kwargs = account._request_engine.execute.call_args
+        assert args == ("POST", "/users/transactions")
+        assert kwargs["data"] == {"user_id": "42", "filter": "order", "continue": "101010"}
+        assert kwargs["headers"]["X-Requested-With"] == "XMLHttpRequest"
+
+    @pytest.mark.asyncio
+    async def test_get_transactions_empty_cursor(self, client, account):
+        account._request_engine.execute.return_value = make_response(text="tx-batch")
+        await client.get_transactions(99)
+        _, kwargs = account._request_engine.execute.call_args
+        assert kwargs["data"] == {"user_id": "99", "filter": "", "continue": ""}
 
 
 class TestEditAndCreateLot:

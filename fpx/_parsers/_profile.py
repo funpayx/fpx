@@ -7,12 +7,18 @@ from typing import Any
 
 from bs4 import BeautifulSoup
 
-from fpx.models.account import Balance
+from fpx.models.account import Balance, Transaction, TransactionsPage
 from fpx.utils import errors as fpx_err
 
 from ._base import BaseParser
 
 logger = logging.getLogger("fpx.profile_parser")
+
+_AMOUNT_RE = re.compile(r"([+\-−–—]?\s*\d+(?:[.,]\d+)?)")
+_PAYMENT_METHOD_RE = re.compile(r"payment-method-([a-zA-Z0-9_]+)")
+_ORDER_TYPE_MARKERS = ("заказ", "order", "замовлення")
+_WITHDRAW_TYPE_MARKERS = ("вывод", "withdraw", "виведен", "вивід", "виводу")
+_PAYMENT_TYPE_MARKERS = ("пополнен", "payment", "поповнен")
 
 
 class ProfileParser(BaseParser):
@@ -219,3 +225,134 @@ class ProfileParser(BaseParser):
         except Exception:
             raise fpx_err.FpxParseError("Не удалось распарсить csrf_token из data-app-data.")
         return result
+
+    @classmethod
+    def parse_transactions(cls, html_content: str) -> TransactionsPage:
+        """Парсит историю транзакций с /account/balance или POST /users/transactions."""
+        soup = BeautifulSoup(html_content, "html.parser")
+        items = soup.find_all("div", class_="tc-item")
+        if not items:
+            items = soup.find_all("a", class_="tc-item")
+        if not items:
+            items = soup.find_all(attrs={"data-transaction": True})
+
+        transactions: list[Transaction] = []
+        for item in items:
+            try:
+                parsed = cls._parse_transaction_item(item)
+                if parsed is not None:
+                    transactions.append(parsed)
+            except Exception as e:
+                logger.debug(f"Ошибка парсинга отдельной транзакции: {e}. Пропускаем")
+                continue
+
+        if items and not transactions:
+            raise fpx_err.FpxParseError("При парсинге не найдено ни одной транзакции")
+
+        return TransactionsPage(
+            transactions=transactions,
+            next_transaction_id=cls._hidden_input_value(soup, "continue"),
+            user_id=cls._hidden_input_value(soup, "user_id"),
+            filter=cls._hidden_input_value(soup, "filter", allow_empty=True),
+        )
+
+    @classmethod
+    def _parse_transaction_item(cls, item: Any) -> Transaction | None:
+        tx_id = cls._get_str_attr(item, "data-transaction").strip()
+        if not tx_id:
+            href = cls._get_str_attr(item, "href")
+            if "id=" in href:
+                tx_id = href.split("id=")[-1].split("&")[0].strip()
+        if not tx_id:
+            return None
+
+        date_tag = item.find("span", class_="tc-date-time") or item.find("div", class_="tc-date-time")
+        title_tag = item.find("span", class_="tc-title") or item.find("div", class_="tc-title")
+        price_tag = item.find("div", class_="tc-price") or item.find("span", class_="tc-price")
+        status_tag = item.find("div", class_="tc-status") or item.find("span", class_="tc-status")
+        number_tag = item.find("span", class_="tc-payment-number") or item.find("div", class_="tc-payment-number")
+
+        description = cls.clean_text(title_tag)
+        amount, currency = cls._parse_transaction_amount(cls.clean_text(price_tag))
+        classes = " ".join(cls._get_class_list(item))
+        withdrawal = cls.clean_text(number_tag) or None
+
+        return Transaction(
+            transaction_id=tx_id,
+            type=cls._infer_transaction_type(description),
+            amount=amount,
+            date=cls.clean_text(date_tag),
+            description=description,
+            status=cls._parse_transaction_status(classes, cls.clean_text(status_tag)),
+            currency=currency,
+            payment_method=cls._parse_payment_method(item),
+            withdrawal_number=withdrawal,
+        )
+
+    @classmethod
+    def _parse_transaction_amount(cls, raw: str) -> tuple[float, str]:
+        currency = ""
+        for symbol in ("₽", "$", "€"):
+            if symbol in raw:
+                currency = symbol
+                break
+        compact = raw.replace(" ", "")
+        match = _AMOUNT_RE.search(compact)
+        token = match.group(1) if match else compact
+        token = token.replace(",", ".").replace("−", "-").replace("–", "-").replace("—", "-").replace("+", "")
+        token = "".join(c for c in token if c.isdigit() or c in ".-")
+        try:
+            amount = float(token) if token not in ("", "-", ".", "-.") else 0.0
+        except ValueError:
+            amount = 0.0
+        return amount, currency
+
+    @classmethod
+    def _infer_transaction_type(cls, description: str) -> str:
+        text = description.lower()
+        if any(marker in text for marker in _ORDER_TYPE_MARKERS):
+            return "order"
+        if any(marker in text for marker in _WITHDRAW_TYPE_MARKERS):
+            return "withdraw"
+        if any(marker in text for marker in _PAYMENT_TYPE_MARKERS):
+            return "payment"
+        return "other"
+
+    @classmethod
+    def _parse_transaction_status(cls, classes: str, status_text: str = "") -> str:
+        if "transaction-status-complete" in classes:
+            return "completed"
+        if "transaction-status-cancel" in classes:
+            return "cancelled"
+        if "transaction-status-waiting" in classes:
+            return "pending"
+        text = status_text.lower()
+        if any(token in text for token in ("заверш", "complete")):
+            return "completed"
+        if any(token in text for token in ("отмен", "cancel", "скасов")):
+            return "cancelled"
+        if any(token in text for token in ("ожид", "wait", "pending", "очік")):
+            return "pending"
+        return "unknown"
+
+    @classmethod
+    def _parse_payment_method(cls, item: Any) -> str | None:
+        logo = item.find("span", class_="payment-logo")
+        if logo is None:
+            logo = item.find(class_=lambda c: c and "payment-method-" in " ".join(c if isinstance(c, list) else [c]))
+        if logo is None:
+            return None
+        classes = " ".join(cls._get_class_list(logo))
+        match = _PAYMENT_METHOD_RE.search(classes)
+        return match.group(1) if match else None
+
+    @classmethod
+    def _hidden_input_value(cls, soup: BeautifulSoup, name: str, *, allow_empty: bool = False) -> str | None:
+        tag = soup.find("input", attrs={"name": name})
+        if tag is None:
+            return None
+        value = cls._get_str_attr(tag, "value")
+        if allow_empty:
+            return value
+        stripped = value.strip()
+        return stripped or None

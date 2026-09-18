@@ -17,6 +17,7 @@ class TestFpxParser:
         assert hasattr(FpxParser, "parse_finanses")
         assert hasattr(FpxParser, "parse_my_sells")
         assert hasattr(FpxParser, "parse_main_menu")
+        assert hasattr(FpxParser, "parse_transactions")
 
     def test_parse_via_fpx(self):
         """Можно вызывать методы чат-парсера через FpxParser."""

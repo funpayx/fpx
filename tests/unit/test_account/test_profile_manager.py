@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from fpx.classes.account.subclasses.profile import ProfileManager
-from fpx.models.account import Balance, Order, Profile, UserData
+from fpx.models.account import Balance, Order, Profile, Transaction, TransactionsPage, UserData
 from fpx.utils import errors as fpx_err
 
 
@@ -20,10 +20,13 @@ def account():
     acc._client.get_next_sells = AsyncMock()
     acc._client.get_user_profile = AsyncMock()
     acc._client.get_finance_page = AsyncMock()
+    acc._client.get_transactions_page = AsyncMock()
+    acc._client.get_transactions = AsyncMock()
     acc._parser.parse_main_menu = MagicMock()
     acc._parser.parse_my_sells = MagicMock()
     acc._parser.parse_profile = MagicMock()
     acc._parser.parse_finanses = MagicMock()
+    acc._parser.parse_transactions = MagicMock()
     return acc
 
 
@@ -200,3 +203,93 @@ class TestGetBalance:
         account._client.get_finance_page.side_effect = Exception("boom")
         with pytest.raises(fpx_err.FpxGetProfileError):
             await manager.get_balance()
+
+
+def _tx(tx_id: str, amount: float = 1.0) -> Transaction:
+    return Transaction(
+        transaction_id=tx_id, type="order", amount=amount, date="сегодня, 10:00", description=f"Заказ #{tx_id}"
+    )
+
+
+class TestGetTransactionsPage:
+    @pytest.mark.asyncio
+    async def test_first_page_uses_get_balance_endpoint(self, manager, account):
+        page = TransactionsPage(transactions=[_tx("11")], next_transaction_id="22", user_id="99", filter="")
+        account._client.get_transactions_page.return_value = "<html>tx</html>"
+        account._parser.parse_transactions.return_value = page
+        result = await manager.get_transactions_page()
+        assert result is page
+        account._client.get_transactions_page.assert_awaited_once()
+        account._client.get_transactions.assert_not_awaited()
+        assert account.data.user_id == "99"
+
+    @pytest.mark.asyncio
+    async def test_filter_uses_post_and_fetches_user_id(self, manager, account):
+        account.data.user_id = None
+        manager.get_user_data = AsyncMock(return_value=UserData(csrf_token="tok", user_id="77"))
+        account._client.get_transactions.return_value = "<html>tx</html>"
+        account._parser.parse_transactions.return_value = TransactionsPage(transactions=[_tx("1")])
+        result = await manager.get_transactions_page(filter="order")
+        assert len(result.transactions) == 1
+        manager.get_user_data.assert_awaited_once()
+        account._client.get_transactions.assert_awaited_once_with(user_id="77", filter="order", from_transaction_id="")
+
+    @pytest.mark.asyncio
+    async def test_cursor_uses_cached_user_id(self, manager, account):
+        account.data.user_id = "42"
+        account._client.get_transactions.return_value = "<html>tx</html>"
+        account._parser.parse_transactions.return_value = TransactionsPage()
+        await manager.get_transactions_page(from_transaction_id="101010")
+        account._client.get_transactions.assert_awaited_once_with(user_id="42", filter="", from_transaction_id="101010")
+
+    @pytest.mark.asyncio
+    async def test_auth_error_reraised(self, manager, account):
+        account._client.get_transactions_page.side_effect = fpx_err.FpxAuthError("bad cookies")
+        with pytest.raises(fpx_err.FpxAuthError):
+            await manager.get_transactions_page()
+
+    @pytest.mark.asyncio
+    async def test_error_wrapped(self, manager, account):
+        account._client.get_transactions_page.side_effect = Exception("boom")
+        with pytest.raises(fpx_err.FpxGetProfileError):
+            await manager.get_transactions_page()
+
+
+class TestGetTransactions:
+    @pytest.mark.asyncio
+    async def test_single_page(self, manager, account):
+        account._client.get_transactions_page.return_value = "<html>tx</html>"
+        account._parser.parse_transactions.return_value = TransactionsPage(transactions=[_tx("1"), _tx("2")])
+        result = await manager.get_transactions()
+        assert [tx.transaction_id for tx in result] == ["1", "2"]
+        account._client.get_transactions.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_paginates_and_keeps_last_page(self, manager, account, monkeypatch):
+        monkeypatch.setattr("asyncio.sleep", AsyncMock())
+        account.data.user_id = "7"
+        account._client.get_transactions_page.return_value = "<html>p1</html>"
+        account._client.get_transactions.return_value = "<html>p2</html>"
+        page1 = TransactionsPage(transactions=[_tx("1")], next_transaction_id="99", user_id="7")
+        page2 = TransactionsPage(transactions=[_tx("2")])
+        account._parser.parse_transactions.side_effect = [page1, page2]
+        result = await manager.get_transactions()
+        assert [tx.transaction_id for tx in result] == ["1", "2"]
+        account._client.get_transactions.assert_awaited_once_with(user_id="7", filter="", from_transaction_id="99")
+
+    @pytest.mark.asyncio
+    async def test_limit_stops_pagination(self, manager, account, monkeypatch):
+        monkeypatch.setattr("asyncio.sleep", AsyncMock())
+        account.data.user_id = "7"
+        account._client.get_transactions_page.return_value = "<html>p1</html>"
+        page = TransactionsPage(transactions=[_tx("1"), _tx("2"), _tx("3")], next_transaction_id="next")
+        account._parser.parse_transactions.return_value = page
+        result = await manager.get_transactions(limit=2)
+        assert [tx.transaction_id for tx in result] == ["1", "2"]
+        account._client.get_transactions.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_error_wrapped(self, manager, account):
+        account._client.get_transactions_page.side_effect = Exception("boom")
+        with pytest.raises(fpx_err.FpxGetProfileError):
+            await manager.get_transactions()

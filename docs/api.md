@@ -574,6 +574,48 @@ Raises:
     FpxGetProfileError: Ошибка сбора баланса
 ```
 
+### `ProfileManager.get_transactions`
+
+```
+История транзакций аккаунта. Пагинирует страницы FunPay.
+
+Args:
+    limit (int): Сколько операций вернуть (0 — все доступные).
+    filter (str): Фильтр FunPay: "", payment, withdraw, order, other.
+    from_transaction_id (str | int | None): Начать с этой пачки (курсор continue).
+Returns:
+    list[Transaction]: Список операций:
+        - transaction_id (str): ID транзакции.
+        - type (str): order / withdraw / payment / other.
+        - amount (float): Сумма.
+        - date (str): Дата.
+        - description (str): Описание.
+        - status (str): completed / cancelled / pending / unknown.
+        - currency (str): ₽ / $ / €.
+        - payment_method (str): Метод оплаты, если есть.
+        - withdrawal_number (str): Номер карты/кошелька, если есть.
+Raises:
+    FpxAuthError: Неверные куки
+    FpxGetProfileError: Ошибка запроса истории транзакций
+```
+
+### `ProfileManager.get_transactions_page`
+
+```
+Одна страница истории транзакций.
+Без фильтра и курсора — GET /account/balance.
+Иначе — POST /users/transactions.
+
+Args:
+    from_transaction_id (str | int | None): Курсор continue для следующей пачки.
+    filter (str): Фильтр FunPay: "", payment, withdraw, order, other.
+Returns:
+    TransactionsPage: Пачка транзакций и курсор next_transaction_id.
+Raises:
+    FpxAuthError: Неверные куки
+    FpxGetProfileError: Ошибка запроса истории транзакций
+```
+
 ### `ProfileManager.get_my_sells`
 
 ```
@@ -778,6 +820,13 @@ https://funpay.com/lots/offerEdit?node=...&offer=...
 
 ```
 Парсит https://funpay.com/users/.../
+```
+
+### `ProfileParser.parse_transactions`
+
+```
+Парсит историю транзакций с https://funpay.com/account/balance
+или POST /users/transactions.
 ```
 
 ## FSM (Finite State Machine)

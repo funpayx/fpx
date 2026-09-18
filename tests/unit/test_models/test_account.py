@@ -4,7 +4,17 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from fpx.models.account import Balance, CurReview, Order, Profile, Purchase, Review, UserData
+from fpx.models.account import (
+    Balance,
+    CurReview,
+    Order,
+    Profile,
+    Purchase,
+    Review,
+    Transaction,
+    TransactionsPage,
+    UserData,
+)
 from fpx.models.lots import LotInfo
 
 
@@ -14,6 +24,23 @@ class TestAccountModels:
         assert bal.rub == 100.0
         assert bal.usd == 1.5
         assert bal.eur == 0.8
+
+    def test_transaction_model(self):
+        tx = Transaction(
+            transaction_id="123",
+            type="order",
+            amount=10.5,
+            date="сегодня, 12:00",
+            description="Заказ #ABC",
+            status="completed",
+            currency="₽",
+        )
+        assert tx.transaction_id == "123"
+        assert tx.type == "order"
+        assert tx.amount == 10.5
+        page = TransactionsPage(transactions=[tx], next_transaction_id="9")
+        assert page.transactions[0] is tx
+        assert page.next_transaction_id == "9"
 
     def test_order_model(self):
         order = Order(order_id="999", client_name="Вася", price=50.0, status="paid", name="Товар", chat_id="chat-1")

@@ -215,6 +215,37 @@
 
 ---
 
+## Transaction
+
+Одна операция из истории баланса. Возвращается `get_transactions` / `get_transactions_page`.
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `transaction_id` | `str` | ID транзакции FunPay |
+| `type` | `str` | `order` / `withdraw` / `payment` / `other` |
+| `amount` | `float` | Сумма (минус для списаний) |
+| `date` | `str` | Дата, как на FunPay |
+| `description` | `str` | Описание (`Заказ #…`, `Вывод денег #…`) |
+| `status` | `str` | `completed` / `cancelled` / `pending` / `unknown` |
+| `currency` | `str` | `₽` / `$` / `€` |
+| `payment_method` | `str` | Метод (например `card_rub`), если есть |
+| `withdrawal_number` | `str` | Маскированный номер карты/кошелька |
+
+---
+
+## TransactionsPage
+
+Одна пачка истории транзакций.
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `transactions` | `list[Transaction]` | Операции на странице |
+| `next_transaction_id` | `str` | Курсор следующей пачки (`continue`) |
+| `user_id` | `str` | ID владельца истории |
+| `filter` | `str` | Применённый фильтр FunPay |
+
+---
+
 ## Dependency
 
 Зависимость для хендлеров.
