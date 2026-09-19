@@ -165,3 +165,23 @@ class ProfileManager:
         except Exception as e:
             raise fpx_err.FpxGetProfileError(f"При сборе баланса, выполняя {step} произошла ошибка: {e}") from e
         return cast(Balance, balance)
+
+    async def get_2fa_status(self) -> bool:
+        """
+        Проверяет, включена ли двухфакторная аутентификация на аккаунте.
+
+        Returns:
+            bool: True если 2FA включена, False если выключена.
+        Raises:
+            FpxGetProfileError: Ошибка запроса статуса 2FA
+        """
+        try:
+            step = "запрос данных FunPay"
+            html = await self._account._client.get_2fa_settings_page()
+            step = "парсинг данных"
+            enabled = self._account._parser.parse_2fa_status(html)
+        except fpx_err.FpxAuthError:
+            raise
+        except Exception as e:
+            raise fpx_err.FpxGetProfileError(f"При сборе статуса 2FA, выполняя {step} произошла ошибка: {e}")
+        return bool(enabled)

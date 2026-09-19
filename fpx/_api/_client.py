@@ -32,6 +32,10 @@ class FunPayClient:
         r = await self._account._request_engine.execute("GET", "/account/balance")
         return r.text
 
+    async def get_2fa_settings_page(self) -> str:
+        r = await self._account._request_engine.execute("GET", "/security/twoFactorSetting")
+        return r.text
+
     async def send_message_request(self, node_name: str, last_msg: int, text: str) -> dict[str, Any]:
         request_data = {
             "action": "chat_message",

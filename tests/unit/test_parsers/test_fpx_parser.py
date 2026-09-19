@@ -15,6 +15,7 @@ class TestFpxParser:
         assert hasattr(FpxParser, "parse_category_page")
         assert hasattr(FpxParser, "parse_profile")
         assert hasattr(FpxParser, "parse_finanses")
+        assert hasattr(FpxParser, "parse_2fa_status")
         assert hasattr(FpxParser, "parse_my_sells")
         assert hasattr(FpxParser, "parse_main_menu")
 

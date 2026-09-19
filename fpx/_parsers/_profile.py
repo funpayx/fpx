@@ -16,6 +16,35 @@ logger = logging.getLogger("fpx.profile_parser")
 
 
 class ProfileParser(BaseParser):
+    # Кнопки на /security/twoFactorSetting: если 2FA выключена — «включить»,
+    # если включена — «отключить». Проверяем ru/en/uk локали FunPay.
+    _2FA_ENABLE_MARKERS = (
+        "включить 2fa",
+        "enable 2fa",
+        "увімкнути 2fa",
+    )
+    _2FA_DISABLE_MARKERS = (
+        "отключить 2fa",
+        "disable 2fa",
+        "вимкнути 2fa",
+    )
+
+    @classmethod
+    def parse_2fa_status(cls, html_content: str) -> bool:
+        """Парсит https://funpay.com/security/twoFactorSetting"""
+        if not html_content or not str(html_content).strip():
+            raise fpx_err.FpxNullDataError("Страница настроек 2FA пустая")
+        text = html_content.lower()
+        has_disable = any(marker in text for marker in cls._2FA_DISABLE_MARKERS)
+        has_enable = any(marker in text for marker in cls._2FA_ENABLE_MARKERS)
+        if has_disable and not has_enable:
+            return True
+        if has_enable and not has_disable:
+            return False
+        raise fpx_err.FpxParseError(
+            "Не удалось определить статус 2FA: на странице нет однозначных маркеров включения или отключения."
+        )
+
     @classmethod
     def parse_finanses(cls, html_content: str) -> Balance:
         """Парсит https://funpay.com/account/balance"""

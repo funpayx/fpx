@@ -30,6 +30,38 @@ class TestProfileParser:
         with pytest.raises(fpx_err.FpxNullDataError):
             ProfileParser.parse_finanses("<html><body>Пусто</body></html>")
 
+    def test_parse_2fa_status_enabled_ru(self):
+        html = """
+        <html><body>
+          <h1>Двухфакторная аутентификация</h1>
+          <button type="submit">Отключить 2FA</button>
+        </body></html>
+        """
+        assert ProfileParser.parse_2fa_status(html) is True
+
+    def test_parse_2fa_status_disabled_ru(self):
+        html = """
+        <html><body>
+          <h1>Двухфакторная аутентификация</h1>
+          <button type="submit">Включить 2FA</button>
+        </body></html>
+        """
+        assert ProfileParser.parse_2fa_status(html) is False
+
+    def test_parse_2fa_status_enabled_en(self):
+        assert ProfileParser.parse_2fa_status("<button>Disable 2FA</button>") is True
+
+    def test_parse_2fa_status_disabled_uk(self):
+        assert ProfileParser.parse_2fa_status("<button>Увімкнути 2FA</button>") is False
+
+    def test_parse_2fa_status_empty_raises(self):
+        with pytest.raises(fpx_err.FpxNullDataError):
+            ProfileParser.parse_2fa_status("   ")
+
+    def test_parse_2fa_status_unknown_markup_raises(self):
+        with pytest.raises(fpx_err.FpxParseError):
+            ProfileParser.parse_2fa_status("<html><body>Нет маркеров 2FA</body></html>")
+
     def test_parse_profile_success(self):
         """Профиль: лоты + отзывы."""
         html = """

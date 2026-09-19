@@ -20,10 +20,12 @@ def account():
     acc._client.get_next_sells = AsyncMock()
     acc._client.get_user_profile = AsyncMock()
     acc._client.get_finance_page = AsyncMock()
+    acc._client.get_2fa_settings_page = AsyncMock()
     acc._parser.parse_main_menu = MagicMock()
     acc._parser.parse_my_sells = MagicMock()
     acc._parser.parse_profile = MagicMock()
     acc._parser.parse_finanses = MagicMock()
+    acc._parser.parse_2fa_status = MagicMock()
     return acc
 
 
@@ -200,3 +202,33 @@ class TestGetBalance:
         account._client.get_finance_page.side_effect = Exception("boom")
         with pytest.raises(fpx_err.FpxGetProfileError):
             await manager.get_balance()
+
+
+class TestGet2FAStatus:
+    @pytest.mark.asyncio
+    async def test_success_enabled(self, manager, account):
+        account._client.get_2fa_settings_page.return_value = "<html>Отключить 2FA</html>"
+        account._parser.parse_2fa_status.return_value = True
+        result = await manager.get_2fa_status()
+        assert result is True
+        account._client.get_2fa_settings_page.assert_awaited_once()
+        account._parser.parse_2fa_status.assert_called_once_with("<html>Отключить 2FA</html>")
+
+    @pytest.mark.asyncio
+    async def test_success_disabled(self, manager, account):
+        account._client.get_2fa_settings_page.return_value = "<html>Включить 2FA</html>"
+        account._parser.parse_2fa_status.return_value = False
+        result = await manager.get_2fa_status()
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_error_wrapped(self, manager, account):
+        account._client.get_2fa_settings_page.side_effect = Exception("boom")
+        with pytest.raises(fpx_err.FpxGetProfileError):
+            await manager.get_2fa_status()
+
+    @pytest.mark.asyncio
+    async def test_auth_error_reraised(self, manager, account):
+        account._client.get_2fa_settings_page.side_effect = fpx_err.FpxAuthError("bad cookies")
+        with pytest.raises(fpx_err.FpxAuthError):
+            await manager.get_2fa_status()

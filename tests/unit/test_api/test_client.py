@@ -50,6 +50,13 @@ class TestSimpleGetEndpoints:
         account._request_engine.execute.assert_awaited_once_with("GET", "/account/balance")
 
     @pytest.mark.asyncio
+    async def test_get_2fa_settings_page(self, client, account):
+        account._request_engine.execute.return_value = make_response(text="2fa-html")
+        result = await client.get_2fa_settings_page()
+        assert result == "2fa-html"
+        account._request_engine.execute.assert_awaited_once_with("GET", "/security/twoFactorSetting")
+
+    @pytest.mark.asyncio
     async def test_get_current_chat(self, client, account):
         account._request_engine.execute.return_value = make_response(text="chat-html")
         result = await client.get_current_chat("123")
