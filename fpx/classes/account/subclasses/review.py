@@ -24,7 +24,7 @@ class ReviewManager:
                 - answer (str): Ваш ответ на отзыв, может быть пустой строкой.
         """
         r = await self._account.order.get_order_details(order_id)
-        rev = r.review
+        rev = r.review or {}
         review = Review(text=rev.get("text"), stars=rev.get("stars"), answer=rev.get("answer"))
         return review
 
@@ -47,12 +47,15 @@ class ReviewManager:
             response = r.json()
         except json.JSONDecodeError as e:
             raise fpx_err.FpxAnswerReviewError("Сервер не вернул ничего") from e
-        try:
-            if text in response["content"]:
-                return True
-            raise fpx_err.FpxAnswerReviewError(message="Ответ не сохранился")
-        except Exception as e:
-            raise fpx_err.FpxAnswerReviewError(message=response.get("msg") if response.get("msg") else response) from e
+
+        if "msg" in response:
+            raise fpx_err.FpxAnswerReviewError(message=response["msg"])
+
+        content = response.get("content", "")
+        if text in content:
+            return True
+        
+        raise fpx_err.FpxAnswerReviewError(message="Ответ не сохранился")
 
     async def delete_review(self, order_id: str | int) -> bool:
         """

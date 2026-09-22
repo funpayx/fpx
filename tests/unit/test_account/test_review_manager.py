@@ -76,16 +76,18 @@ class TestReviewAnswer:
         response = MagicMock()
         response.json.return_value = {"content": "другой текст"}
         account._client.answer_review.return_value = response
-        with pytest.raises(fpx_err.FpxAnswerReviewError):
+        with pytest.raises(fpx_err.FpxAnswerReviewError) as exc:
             await manager.review_answer("order-1", "мой текст")
+        assert exc.value.message == "Ответ не сохранился"
 
     @pytest.mark.asyncio
     async def test_error_response_with_msg_raises_with_msg(self, manager, account):
         response = MagicMock()
         response.json.return_value = {"msg": "Нельзя отвечать повторно"}
         account._client.answer_review.return_value = response
-        with pytest.raises(fpx_err.FpxAnswerReviewError):
+        with pytest.raises(fpx_err.FpxAnswerReviewError) as exc:
             await manager.review_answer("order-1", "текст")
+        assert exc.value.message == "Нельзя отвечать повторно"
 
 
 class TestDeleteReview:
