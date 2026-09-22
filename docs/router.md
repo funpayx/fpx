@@ -122,7 +122,7 @@ async def all_orders(order: types.Order):
 
 ### `@fp.router.on_new_order(mapping=None)`
 
-Только новые оплаченные заказы (статус "Оплачен" / "paid" / "відкрито").
+Только новые оплаченные заказы (статус "Оплачен" / "Paid" / "відкрито" и другие локали).
 
 ```python
 @fp.router.on_new_order(mapping=["ключ", "key"])
@@ -133,7 +133,7 @@ async def auto_key(order: types.Order):
 
 ### `@fp.router.on_confirmed_orders(mapping=None)`
 
-Только подтверждённые заказы (статус "Закрыт" / "closed" / "закрито").
+Только подтверждённые заказы (статус "Закрыт" / "Closed" / "закрито" и другие локали).
 
 ```python
 @fp.router.on_confirmed_orders()
@@ -143,7 +143,7 @@ async def confirmed(order: types.Order):
 
 ### `@fp.router.on_refunded_orders(mapping=None)`
 
-Только возвраты (статус "Возврат" / "refund" / "повернення").
+Только возвраты (статус "Возврат" / "Refunded" / "refund" / "повернення" и другие локали).
 
 ```python
 @fp.router.on_refunded_orders()
