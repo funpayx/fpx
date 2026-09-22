@@ -135,13 +135,7 @@ class TestInvokeEventBinding:
 
 class TestInvokeDependencyInjection:
     @pytest.mark.asyncio
-    async def test_sync_dependency_is_always_called_with_event(self, router):
-        """
-        Особенность реализации: dep_func всегда вызывается с event(ev),
-        независимо от того, сколько параметров он принимает по сигнатуре.
-        Поэтому функция-зависимость должна принимать 1 позиционный аргумент.
-        """
-
+    async def test_sync_one_arg_dependency_is_called_with_event(self, router):
         def get_service(ev):
             return f"service-for-{ev.sender}"
 
@@ -154,7 +148,7 @@ class TestInvokeDependencyInjection:
         assert received["service"] == "service-for-User"
 
     @pytest.mark.asyncio
-    async def test_async_dependency_is_always_called_with_event(self, router):
+    async def test_async_one_arg_dependency_is_called_with_event(self, router):
         async def get_service(ev):
             return f"async-{ev.sender}"
 
@@ -180,6 +174,50 @@ class TestInvokeDependencyInjection:
         assert received["sender"] == "User"
 
     @pytest.mark.asyncio
+    async def test_sync_zero_arg_dependency_is_called_without_event(self, router):
+        def get_config():
+            return "plain-config"
+
+        received = {}
+
+        async def handler(msg: Message, config=Dependency(get_config)):
+            received["config"] = config
+
+        await router.invoke(handler, make_message())
+        assert received["config"] == "plain-config"
+
+    @pytest.mark.asyncio
+    async def test_async_zero_arg_dependency_is_called_without_event(self, router):
+        async def get_config():
+            return "async-config"
+
+        received = {}
+
+        async def handler(msg: Message, config=Dependency(get_config)):
+            received["config"] = config
+
+        await router.invoke(handler, make_message())
+        assert received["config"] == "async-config"
+
+    @pytest.mark.asyncio
+    async def test_zero_arg_dependency_does_not_raise_typeerror(self, router):
+        """0-arg зависимость не должна получать event — иначе TypeError."""
+        calls = []
+
+        def get_token():
+            calls.append("called")
+            return "secret"
+
+        received = {}
+
+        async def handler(msg: Message, token=Dependency(get_token)):
+            received["token"] = token
+
+        await router.invoke(handler, make_message())
+        assert received["token"] == "secret"
+        assert calls == ["called"]
+
+    @pytest.mark.asyncio
     async def test_async_gen_dependency_is_closed_after_call(self, router):
         closed = {"value": False}
 
@@ -196,6 +234,25 @@ class TestInvokeDependencyInjection:
 
         await router.invoke(handler, make_message())
         assert received["res"] == "resource"
+        assert closed["value"] is True
+
+    @pytest.mark.asyncio
+    async def test_async_gen_zero_arg_dependency_is_called_without_event(self, router):
+        closed = {"value": False}
+
+        async def get_resource():
+            try:
+                yield "zero-arg-resource"
+            finally:
+                closed["value"] = True
+
+        received = {}
+
+        async def handler(msg: Message, res=Dependency(get_resource)):
+            received["res"] = res
+
+        await router.invoke(handler, make_message())
+        assert received["res"] == "zero-arg-resource"
         assert closed["value"] is True
 
 
