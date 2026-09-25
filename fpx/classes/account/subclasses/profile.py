@@ -214,6 +214,8 @@ class ProfileManager:
 
         Returns:
             str: Ссылка на телеграм бота для подключения тг
+        Raises:
+            FpxGetProfileError: Ошибка запроса статуса 2FA
         """
         step = "запроса данных FunPay"
         try:

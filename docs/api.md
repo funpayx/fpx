@@ -619,6 +619,20 @@ Raises:
     FpxGetProfileError: Ошибка запроса статуса 2FA
 ```
 
+### `ProfileManager.get_telegram_connect_url`
+
+```
+Возвращает ссылку привязки Telegram уведомлений (@funpaysmartbot).
+
+GET /account/linkTelegram - редирект на t.me.
+
+Returns:
+    str: URL привязки Telegram.
+Raises:
+    FpxAuthError: Неверные куки
+    FpxGetProfileError: Ошибка запроса ссылки привязки
+```
+
 ### `ProfileManager.get_balance`
 
 ```

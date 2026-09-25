@@ -86,6 +86,17 @@ else:
 
 Возвращает `bool`: `True` если 2FA включена, `False` если выключена.
 
+### `await fp.account.profile.get_telegram_connect_url()`
+
+Ссылка привязки Telegram-уведомлений через `@funpaysmartbot`. FunPay: `GET /account/linkTelegram` (обычно редирект на `t.me`).
+
+```python
+url = await fp.account.profile.get_telegram_connect_url()
+print(url)
+```
+
+Возвращает `str`.
+
 ---
 
 ## Альтернативный доступ через `fpx.services`
