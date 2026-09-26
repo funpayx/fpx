@@ -86,6 +86,30 @@ else:
 
 Возвращает `bool`: `True` если 2FA включена, `False` если выключена.
 
+### `await fp.account.profile.get_telegram_connect_url()`
+
+Ссылка привязки Telegram-уведомлений через `@funpaysmartbot`. FunPay: `GET /account/linkTelegram` (обычно редирект на `t.me`).
+
+```python
+url = await fp.account.profile.get_telegram_connect_url()
+print(url)
+```
+
+Возвращает `str`.
+
+### `await fp.account.profile.update_notice_channel(channel, enabled)`
+
+Включает или выключает канал уведомлений. FunPay: `POST /account/noticeChannel`.
+
+```python
+await fp.account.profile.update_notice_channel("telegram", True)
+await fp.account.profile.update_notice_channel(1, False)  # email
+```
+
+`channel`: `1` / `"email"`, `2` / `"push"`, `3` / `"telegram"`.
+
+Возвращает `True` при успешном запросе. Неизвестный канал - `FpxAttributeError`, неверные куки - `FpxAuthError`.
+
 ---
 
 ## Альтернативный доступ через `fpx.services`

@@ -327,3 +327,38 @@ class TestRequestEnginePostEndpoints:
         assert kwargs["data"] == {"continue": "page-2"}
         assert kwargs["headers"]["X-Requested-With"] == "XMLHttpRequest"
         http_client.request.assert_not_called()
+
+
+class TestTelegramAndNoticeEndpoints:
+    @pytest.mark.asyncio
+    async def test_get_tg_conn_link(self, client, account):
+        response = make_response()
+        response.url = "https://t.me/funpaysmartbot?start=xyz"
+        account._request_engine.execute.return_value = response
+
+        result = await client.get_tg_conn_link()
+
+        assert result == "https://t.me/funpaysmartbot?start=xyz"
+        account._request_engine.execute.assert_awaited_once_with("GET", "/account/linkTelegram")
+
+    @pytest.mark.asyncio
+    async def test_update_notice_channel_success(self, client, account):
+        account._request_engine.execute.return_value = make_response(status_code=200)
+
+        result = await client.update_notice_channel(3, True)
+
+        assert result is True
+        args, kwargs = account._request_engine.execute.call_args
+        assert args == ("POST", "/account/noticeChannel")
+        assert kwargs["data"] == {"channel": 3, "active": True}
+
+    @pytest.mark.asyncio
+    async def test_update_notice_channel_fail_status(self, client, account):
+        account._request_engine.execute.return_value = make_response(status_code=500)
+
+        result = await client.update_notice_channel("email", False)
+
+        assert result is False
+        args, kwargs = account._request_engine.execute.call_args
+        assert args == ("POST", "/account/noticeChannel")
+        assert kwargs["data"] == {"channel": "email", "active": False}

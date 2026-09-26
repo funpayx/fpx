@@ -235,3 +235,13 @@ class FunPayClient:
         headers = {"X-Requested-With": "XMLHttpRequest"}
         r = await self.client.request("POST", "/orders/", data={"continue": next_page_id}, headers=headers)
         return r.text
+
+    async def get_tg_conn_link(self) -> str | None:
+        r = await self._account._request_engine.execute("GET", "/account/linkTelegram")
+        return r.url
+
+    async def update_notice_channel(self, channel_id: int | str, active: bool) -> bool:
+        r = await self._account._request_engine.execute(
+            "POST", "/account/noticeChannel", data={"channel": channel_id, "active": active}
+        )
+        return r.status_code == 200

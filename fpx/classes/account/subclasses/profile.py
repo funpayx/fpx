@@ -23,8 +23,8 @@ class ProfileManager:
         Raises:
             FpxGetUserDataError: ошибка запроса данных юзера
         """
+        stage = "запроса данных FunPay"
         try:
-            stage = "запроса данных FunPay"
             html = await self._account._client.get_main_menu()
             stage = "парсинга данных"
             data = self._account._parser.parse_main_menu(html)
@@ -58,11 +58,11 @@ class ProfileManager:
             FpxGetUserSellsError: Ошибка запроса продаж
         """
         counter = 0
+        stage = "запроса данных FunPay"
         try:
             next_stage = True
             count_of_sells = 0
             data = []
-            stage = "запроса данных FunPay"
             html = await self._account._client.get_my_sells()
             next_page_id = ""
             while next_stage:
@@ -127,8 +127,8 @@ class ProfileManager:
         if not target_id:
             target = await self.get_user_data()
             target_id = target.user_id
+        step = "запроса данных FunPay"
         try:
-            step = "запроса данных FunPay"
             html = await self._account._client.get_user_profile(target_id)
             step = "парсинга данных"
             data = self._account._parser.parse_profile(html)
@@ -155,8 +155,8 @@ class ProfileManager:
         Raises:
             FpxGetProfileError: Ошибка сбора баланса
         """
+        step = "запрос данных FunPay"
         try:
-            step = "запрос данных FunPay"
             html = await self._account._client.get_finance_page()
             step = "парсинг данных"
             balance = self._account._parser.parse_finanses(html)
@@ -179,8 +179,8 @@ class ProfileManager:
             FpxAuthError: Неверные куки
             FpxGetProfileError: Ошибка проверки бана
         """
+        step = "запроса данных FunPay"
         try:
-            step = "запроса данных FunPay"
             response = await self._account._client.get_blocked_page()
         except fpx_err.FpxAuthError:
             raise
@@ -197,8 +197,8 @@ class ProfileManager:
         Raises:
             FpxGetProfileError: Ошибка запроса статуса 2FA
         """
+        step = "запроса данных FunPay"
         try:
-            step = "запрос данных FunPay"
             html = await self._account._client.get_2fa_settings_page()
             step = "парсинг данных"
             enabled = self._account._parser.parse_2fa_status(html)
@@ -207,3 +207,60 @@ class ProfileManager:
         except Exception as e:
             raise fpx_err.FpxGetProfileError(f"При сборе статуса 2FA, выполняя {step} произошла ошибка: {e}") from e
         return bool(enabled)
+
+    async def get_telegram_connect_url(self) -> str:
+        """
+        Запрашивает ссылку для подключения Telegram.
+
+        Returns:
+            str: Ссылка на телеграм бота для подключения тг
+        Raises:
+            FpxGetProfileError: Ошибка запроса статуса 2FA
+        """
+        step = "запроса данных FunPay"
+        try:
+            tg_link = await self._account._client.get_tg_conn_link()
+        except Exception as e:
+            raise fpx_err.FpxGetProfileError(f"При сборе статуса 2FA, выполняя {step} произошла ошибка: {e}") from e
+        return tg_link
+
+    async def update_notice_channel(self, channel_id: list[int | str] | int | str, enable: bool) -> bool | list[bool]:
+        """
+        Обновляет канал уведомлений.
+        ID каналов:
+            1) 'email'
+            2) 'push'
+            3) 'telegram'
+        Args:
+            channel_id (list[int | str] | int | str): ID/Список ID каналов, которые надо подключить.
+                Можно передать как числом, так и текстовым значением, выше список каналов.
+            enable (bool): True если включить, False если выключить переданное в channel_id.
+        Returns:
+            list[bool] | bool: True если удалось обновить канал
+        Raises:
+            FpxAttributeError: Неизвестный канал
+            FpxPostProfileError: Ошибка обновления канала уведомлений
+        """
+        return_single: bool = False
+        result_list = []
+        if not isinstance(channel_id, list) and isinstance(channel_id, int | str):
+            channel_id = [channel_id]
+            return_single = True
+        elif not isinstance(channel_id, list):
+            raise fpx_err.FpxAttributeError("Вы должны передать аргументы типа int | str | list в channel_id!")
+        for channel in channel_id:
+            cid: int | None = self._find_notice_channel(channel)
+            try:
+                result_list.append(await self._account._client.update_notice_channel(cid, enable))
+            except Exception as e:
+                raise fpx_err.FpxPostProfileError("Не удалось обновить канал уведомлений") from e
+        return result_list[0] if return_single else result_list
+
+    def _find_notice_channel(self, channel: int | str) -> int:
+        if channel == 1 or channel == "email":
+            return 1
+        elif channel == 2 or channel == "push":
+            return 2
+        elif channel == 3 or channel == "telegram":
+            return 3
+        raise fpx_err.FpxAttributeError("Вы должны передать аргументы типа int | str | list в channel_id!")
