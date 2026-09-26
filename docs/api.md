@@ -633,6 +633,27 @@ Raises:
     FpxGetProfileError: Ошибка запроса ссылки привязки
 ```
 
+### `ProfileManager.update_notice_channel`
+
+```
+Включает или выключает канал уведомлений аккаунта.
+
+POST /account/noticeChannel
+ID каналов:
+  1) 'email'
+  2) 'push'
+  3) 'telegram'
+Args:
+  channel_id (list[int | str] | int | str): ID/Список ID каналов, которые надо подключить.
+    Можно передать как числом, так и текстовым значением, выше список каналов.
+  enable (bool): True если включить, False если выключить переданное в channel_id.
+Returns:
+  list[bool] | bool: True если удалось обновить канал
+Raises:
+  FpxAttributeError: Неизвестный канал
+  FpxPostProfileError: Ошибка обновления канала уведомлений
+```
+
 ### `ProfileManager.get_balance`
 
 ```

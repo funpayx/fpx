@@ -237,6 +237,9 @@ class ProfileManager:
             enable (bool): True если включить, False если выключить переданное в channel_id.
         Returns:
             list[bool] | bool: True если удалось обновить канал
+        Raises:
+            FpxAttributeError: Неизвестный канал
+            FpxPostProfileError: Ошибка обновления канала уведомлений
         """
         return_single: bool = False
         result_list = []
@@ -252,7 +255,6 @@ class ProfileManager:
             except Exception as e:
                 raise fpx_err.FpxPostProfileError('Не удалось обновить канал уведомлений') from e
         return result_list[0] if return_single else result_list
-
 
     def _find_notice_channel(self, channel: int | str) -> int:
         if channel == 1 or channel == 'email':
