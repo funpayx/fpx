@@ -242,9 +242,6 @@ class FunPayClient:
 
     async def update_notice_channel(self, channel_id: int | str, active: bool) -> bool:
         r = await self._account._request_engine.execute(
-            "POST", "/account/noticeChannel", data={
-                'channel': channel_id,
-                'active': active
-            }
+            "POST", "/account/noticeChannel", data={"channel": channel_id, "active": active}
         )
         return r.status_code == 200

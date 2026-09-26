@@ -112,7 +112,7 @@ class TestShutdown:
     def test_polling_task_is_none_before_start(self):
         tools = FunPayTools(TEST_GKEY)
         assert tools.polling_task is None
-    
+
     @pytest.mark.asyncio
     async def test_shutdown_does_not_close_caller_owned_client(self):
         http_client = httpx.AsyncClient()

@@ -54,7 +54,7 @@ class ReviewManager:
         content = response.get("content", "")
         if text in content:
             return True
-        
+
         raise fpx_err.FpxAnswerReviewError(message="Ответ не сохранился")
 
     async def delete_review(self, order_id: str | int) -> bool:
