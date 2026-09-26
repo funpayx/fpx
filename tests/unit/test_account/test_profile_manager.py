@@ -22,7 +22,7 @@ def account():
     acc._client.get_finance_page = AsyncMock()
     acc._client.get_blocked_page = AsyncMock()
     acc._client.get_2fa_settings_page = AsyncMock()
-    acc._client.get_telegram_connect_page = AsyncMock()
+    acc._client.get_tg_conn_link = AsyncMock()
     acc._client.update_notice_channel = AsyncMock()
     acc._parser.parse_main_menu = MagicMock()
     acc._parser.parse_my_sells = MagicMock()
