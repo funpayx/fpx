@@ -22,6 +22,8 @@ def account():
     acc._client.get_finance_page = AsyncMock()
     acc._client.get_blocked_page = AsyncMock()
     acc._client.get_2fa_settings_page = AsyncMock()
+    acc._client.get_telegram_connect_page = AsyncMock()
+    acc._client.update_notice_channel = AsyncMock()
     acc._parser.parse_main_menu = MagicMock()
     acc._parser.parse_my_sells = MagicMock()
     acc._parser.parse_profile = MagicMock()
@@ -264,3 +266,45 @@ class TestGet2FAStatus:
         account._client.get_2fa_settings_page.side_effect = fpx_err.FpxAuthError("bad cookies")
         with pytest.raises(fpx_err.FpxAuthError):
             await manager.get_2fa_status()
+
+
+class TestGetTelegramConnectUrl:
+    @pytest.mark.asyncio
+    async def test_success(self, manager, account):
+        account._client.get_tg_conn_link.return_value = "https://t.me/funpaysmartbot?start=123"
+        result = await manager.get_telegram_connect_url()
+        assert result == "https://t.me/funpaysmartbot?start=123"
+        account._client.get_tg_conn_link.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_error_wrapped(self, manager, account):
+        account._client.get_tg_conn_link.side_effect = Exception("network error")
+        with pytest.raises(fpx_err.FpxGetProfileError):
+            await manager.get_telegram_connect_url()
+
+
+class TestUpdateNoticeChannel:
+    @pytest.mark.asyncio
+    async def test_single_channel_by_str(self, manager, account):
+        account._client.update_notice_channel.return_value = True
+        result = await manager.update_notice_channel("telegram", True)
+        assert result is True
+        account._client.update_notice_channel.assert_awaited_once_with(3, True)
+
+    @pytest.mark.asyncio
+    async def test_list_of_channels(self, manager, account):
+        account._client.update_notice_channel.return_value = True
+        result = await manager.update_notice_channel(["email", 2], False)
+        assert result == [True, True]
+        assert account._client.update_notice_channel.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_invalid_channel_raises(self, manager, account):
+        with pytest.raises(fpx_err.FpxAttributeError):
+            await manager.update_notice_channel("unknown_channel", True)
+
+    @pytest.mark.asyncio
+    async def test_client_error_wrapped(self, manager, account):
+        account._client.update_notice_channel.side_effect = Exception("api error")
+        with pytest.raises(fpx_err.FpxPostProfileError):
+            await manager.update_notice_channel("push", True)
