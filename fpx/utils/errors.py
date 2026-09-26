@@ -217,6 +217,13 @@ class FpxGetProfileError(FpxAccountError):
         super().__init__(message)
 
 
+class FpxPostProfileError(FpxAccountError):
+    """Ошибка отправки данных на профиль"""
+
+    def __init__(self, message: str = "Не удалось отправить данные в профиль") -> None:
+        super().__init__(message)
+
+
 # --- Ошибки парсера ---
 class FpxNullDataError(FpxParseError):
     """Парсер ожидал данные, но пришёл пустой тег или скелет страницы."""
