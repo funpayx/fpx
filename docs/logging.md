@@ -9,6 +9,7 @@
 | `fpx.chat_runner` | обработка сообщений |
 | `fpx.order_runner` | обработка заказов |
 | `fpx.review_runner` | обработка отзывов |
+| `fpx.updates_runner` | приём событий через `/runner/` |
 | `fpx.chat_parser` | парсинг чатов |
 | `fpx.order_parser` | парсинг заказов |
 | `fpx.lot_parser` | парсинг лотов |

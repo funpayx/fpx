@@ -7,6 +7,7 @@ import pytest
 from fpx.classes.runner.subclasses._order import OrderRunner
 from fpx.classes.runner.subclasses.router import Router
 from fpx.models.account import Order
+from fpx.utils import errors as fpx_err
 
 
 def make_order(**overrides):
@@ -325,3 +326,77 @@ class TestCheckOrders:
         runner._account.order.get_order_details = AsyncMock(return_value=order_info)
         await order_runner._check_orders()
         runner._account.order.get_order_details.assert_awaited_once_with("99")
+
+
+def make_sell(order_id, status, date="Сегодня, 12:00"):
+    """Строка продажи в том виде, в котором её отдаёт parse_my_sells."""
+    return {
+        "order-id": order_id,
+        "order-time": date,
+        "client-name": "Bob",
+        "price": 100.0,
+        "name": "Товар",
+        "status": status,
+        "category": "Roblox",
+        "amount": 1,
+        "topup_data": None,
+    }
+
+
+def cached(order_id, status, date="Сегодня, 12:00"):
+    sell = make_sell(order_id, status, date)
+    return {
+        "order_id": order_id,
+        "order_time": date,
+        "client_name": sell["client-name"],
+        "price": sell["price"],
+        "name": sell["name"],
+        "status": status,
+    }
+
+
+class TestOrderPage:
+    """Первая страница продаж: так раннер /runner/ сверяет заказы по сигналу FunPay."""
+
+    @pytest.mark.asyncio
+    async def test_update_builds_cache_from_first_page_only(self, order_runner, runner):
+        runner._account._client.get_my_sells = AsyncMock(return_value="<html>")
+        runner._account._parser.parse_my_sells = MagicMock(
+            return_value={"sells": [make_sell("A1", "Оплачен")], "next_page": "NEXT"}
+        )
+        runner._account._client.get_next_sells = AsyncMock()
+        runner._cache["orders"] = [cached("OLD", "Закрыт")]
+        await order_runner._update_order_page_cache()
+        assert runner._cache["old_orders"] == [cached("OLD", "Закрыт")]
+        assert runner._cache["orders"] == [cached("A1", "Оплачен")]
+        runner._account._client.get_next_sells.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_update_wraps_errors(self, order_runner, runner):
+        runner._account._client.get_my_sells = AsyncMock(return_value="<html>")
+        runner._account._parser.parse_my_sells = MagicMock(side_effect=fpx_err.FpxNullDataError("пусто"))
+        with pytest.raises(fpx_err.FpxGetUserSellsError):
+            await order_runner._update_order_page_cache()
+
+    def test_compare_reports_new_orders_and_status_changes_only(self, order_runner, runner):
+        runner._cache["old_orders"] = [cached("A1", "Оплачен", "Сегодня, 23:59"), cached("A2", "Оплачен")]
+        runner._cache["orders"] = [
+            cached("A3", "Оплачен"),
+            cached("A1", "Оплачен", "Вчера, 23:59"),
+            cached("A2", "Закрыт"),
+        ]
+        result = order_runner._compare_order_statuses()
+        assert [(order.order_id, order.status) for order in result] == [("A3", "Оплачен"), ("A2", "Закрыт")]
+        assert all(isinstance(order, Order) for order in result)
+
+    @pytest.mark.asyncio
+    async def test_check_processes_changed_orders(self, order_runner, runner):
+        runner._cache["orders"] = [cached("A1", "Оплачен")]
+        runner._account._client.get_my_sells = AsyncMock(return_value="<html>")
+        runner._account._parser.parse_my_sells = MagicMock(
+            return_value={"sells": [make_sell("A2", "Оплачен"), make_sell("A1", "Оплачен")]}
+        )
+        order_runner._process_single_order = AsyncMock()
+        await order_runner._check_order_page()
+        processed = [call.args[0].order_id for call in order_runner._process_single_order.await_args_list]
+        assert processed == ["A2"]

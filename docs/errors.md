@@ -11,6 +11,7 @@ FpxError
 ├── FpxAccountError
 │   ├── FpxAuthError
 │   ├── FpxGetChatsError
+│   ├── FpxGetUpdatesError
 │   ├── FpxMessageDeliverError
 │   ├── FpxRaisingLotError
 │   ├── FpxRefundError
@@ -59,6 +60,7 @@ FpxError
 | `FpxError` | Базовая ошибка, ловит всё |
 | `FpxAuthError` | Передан неверный `golden_key` |
 | `FpxGetChatsError` | Не удалось запросить список чатов |
+| `FpxGetUpdatesError` | Не удалось получить обновления через `/runner/` (ответ не пришёл или не разобрался) |
 | `FpxMessageDeliverError` | Сообщение не отправилось |
 | `FpxRaisingLotError` | Не удалось поднять лоты (нет лотов или ошибка) |
 | `FpxRefundError` | Возврат не прошёл |

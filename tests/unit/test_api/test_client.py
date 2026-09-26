@@ -1,5 +1,6 @@
 """Тесты FunPayClient — тонкая обёртка над RequestEngine/httpx клиентом."""
 
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -140,6 +141,20 @@ class TestSimpleGetEndpoints:
         result = await client.get_lot_category("6")
         assert result == "lot-cat-html"
         account._request_engine.execute.assert_awaited_once_with("GET", "/lots/6/")
+
+
+class TestRunnerRequest:
+    @pytest.mark.asyncio
+    async def test_posts_objects_as_json_through_request_engine(self, client, account):
+        body = {"objects": [], "response": False}
+        account._request_engine.execute.return_value = make_response(json_data=body)
+        objects = [{"type": "chat_bookmarks", "id": 1000, "tag": "abcd1234", "data": False}]
+        assert await client.runner_request(objects) == body
+        args, kwargs = account._request_engine.execute.call_args
+        assert args == ("POST", "/runner/")
+        assert json.loads(kwargs["data"]["objects"]) == objects
+        assert kwargs["data"]["request"] == "false"
+        assert kwargs["headers"]["X-Requested-With"] == "XMLHttpRequest"
 
 
 class TestMessageEndpoints:

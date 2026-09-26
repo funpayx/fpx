@@ -149,6 +149,93 @@ class TestChatParser:
         ]
         assert messages[0]["message"].startswith("Покупатель")
 
+    def test_parse_chat_bookmarks(self):
+        """Список чатов из chat_bookmarks ответа /runner/ - та же разметка, что на /chat/."""
+        html = (
+            '<a href="https://funpay.com/chat/?node=555" class="contact-item unread" data-id="555"'
+            ' data-node-msg="102" data-user-msg="101"><div class="contact-item-photo"></div>'
+            '<div class="media-user-name">Buyer</div><div class="contact-item-message">Привет</div>'
+            '<div class="contact-item-time">12:00</div></a>'
+            '<a href="https://funpay.com/chat/?node=556" class="contact-item" data-id="556" data-node-msg="90">'
+            '<div class="media-user-name">Other</div><div class="contact-item-message">Изображение</div></a>'
+        )
+        chats = ChatParser.parse_chat_bookmarks(html)
+        assert [(chat.id, chat.node_msg_id, chat.username, chat.last_msg, chat.is_unread) for chat in chats] == [
+            ("555", 102, "Buyer", "Привет", True),
+            ("556", 90, "Other", "Изображение", False),
+        ]
+
+    def test_parse_chat_bookmarks_empty_is_not_an_error(self):
+        """У аккаунта без чатов chat_bookmarks пустой - это не ошибка разметки."""
+        assert ChatParser.parse_chat_bookmarks("") == []
+
+    def test_parse_runner_messages_real_markup(self):
+        """Сообщения chat_node в разметке страницы чата FunPay (сентябрь 2026), ники и ID заменены.
+
+        Ник есть только у первого сообщения серии, поэтому автор без шапки
+        берётся из переданных имён или из предыдущей шапки того же автора.
+        """
+        notification = """
+        <div class="chat-msg-item chat-msg-with-head" id="message-101">
+        <div class="chat-message">
+        <div class="media-user-name">
+                        FunPay
+                        <span class="chat-msg-author-label label label-primary">оповещение</span>
+        <div class="chat-msg-date" title="26 сентября, 4:09:42">04:09:42</div>
+        </div>
+        <div class="chat-msg-body">
+        <div class="alert alert-with-icon alert-info" role="alert">
+        <i class="fas fa-info-circle alert-icon"></i>
+        <div class="chat-msg-text">Покупатель <a href="https://funpay.com/users/2000/">Buyer</a> оплатил
+        <a href="https://funpay.com/orders/ABCD1234/">заказ #ABCD1234</a>.</div>
+        </div>
+        </div>
+        </div>
+        </div>"""
+        buyer = """
+        <div class="chat-msg-item chat-msg-with-head" id="message-102">
+        <div class="chat-message">
+        <div class="media-user-name">
+        <a class="chat-msg-author-link" href="https://funpay.com/users/2000/">Buyer</a>
+        <div class="chat-msg-date" title="26 сентября, 4:10:22">04:10:22</div>
+        </div>
+        <div class="chat-msg-body">
+        <div class="chat-msg-text">Я оплатил заказ, где товар?</div>
+        </div>
+        </div>
+        </div>"""
+        continuation = (
+            '<div class="chat-msg-item" id="message-103"><div class="chat-message">'
+            '<div class="chat-msg-body"><div class="chat-msg-text">Второе</div></div></div></div>'
+        )
+        mine = (
+            '<div class="chat-msg-item" id="message-104"><div class="chat-message">'
+            '<div class="chat-msg-body"><div class="chat-msg-text">Ответ</div></div></div></div>'
+        )
+        messages = ChatParser.parse_runner_messages(
+            [
+                {"id": 101, "author": 0, "html": notification},
+                {"id": 102, "author": 2000, "html": buyer},
+                {"id": 103, "author": 2000, "html": continuation},
+                {"id": 104, "author": 1000, "html": mine},
+            ],
+            {1000: "Shop"},
+        )
+        assert [(msg["node_id"], msg["sender"], msg["is_system"], msg["message"]) for msg in messages[1:]] == [
+            (102, "Buyer", False, "Я оплатил заказ, где товар?"),
+            (103, "Buyer", False, "Второе"),
+            (104, "Shop", False, "Ответ"),
+        ]
+        assert (messages[0]["node_id"], messages[0]["sender"], messages[0]["is_system"]) == (101, "FunPay", True)
+        assert messages[0]["message"].startswith("Покупатель")
+
+    def test_parse_runner_messages_skips_broken_items(self):
+        """Сообщение без ID пропускается, неизвестный автор без шапки - Unknown."""
+        messages = ChatParser.parse_runner_messages(
+            [{"id": "x"}, {"id": 5, "author": 42, "html": '<div class="chat-msg-text">hi</div>'}], {}
+        )
+        assert [(msg["node_id"], msg["sender"], msg["message"]) for msg in messages] == [(5, "Unknown", "hi")]
+
     def test_parse_chat_empty_raises(self):
         """HTML без блока чата → FpxNullDataError."""
         with pytest.raises(fpx_err.FpxNullDataError):

@@ -35,9 +35,19 @@ class TestRunnerInit:
         assert runner._order.runner is runner
         assert runner._review.runner is runner
         assert runner._category.runner is runner
+        assert runner._updates.runner is runner
+
+    def test_runner_api_is_the_default_mode(self, runner):
+        assert runner._legacy_polling is False
 
 
 class TestWarmUp:
+    """Прогрев в прежнем режиме (legacy_polling=True): кеши страниц чатов, продаж и профиля."""
+
+    @pytest.fixture(autouse=True)
+    def legacy_polling(self, runner):
+        runner._legacy_polling = True
+
     @pytest.mark.asyncio
     async def test_success_marks_cache_updated_and_runs_startup_handlers(self, runner, account):
         account.profile.get_user_data = AsyncMock()
@@ -79,6 +89,12 @@ class TestWarmUp:
 
 
 class TestCacheRunner:
+    """Тик в прежнем режиме (legacy_polling=True): каждый сабраннер загружает свою страницу."""
+
+    @pytest.fixture(autouse=True)
+    def legacy_polling(self, runner):
+        runner._legacy_polling = True
+
     @pytest.mark.asyncio
     async def test_calls_warm_up_when_not_updated(self, runner):
         runner._warm_up = AsyncMock()
@@ -110,6 +126,70 @@ class TestCacheRunner:
         runner._order._check_orders.assert_awaited_once()
         runner._purchase._check_purchases.assert_awaited_once()
         runner._handle_error.assert_awaited_once()
+
+
+class TestRunnerApiMode:
+    """По умолчанию события приходят через /runner/ (UpdatesRunner), страницы по тику не грузятся."""
+
+    @pytest.mark.asyncio
+    async def test_warm_up_uses_updates_runner(self, runner, account):
+        account.profile.get_user_data = AsyncMock()
+        runner._updates._warm_up = AsyncMock()
+        runner._chat._update_chat_cache = AsyncMock()
+        runner._order._update_order_cache = AsyncMock()
+        runner._review._update_review_cache = AsyncMock()
+        await runner._warm_up(None, None)
+        runner._updates._warm_up.assert_awaited_once()
+        runner._chat._update_chat_cache.assert_not_awaited()
+        runner._order._update_order_cache.assert_not_awaited()
+        runner._review._update_review_cache.assert_not_awaited()
+        assert runner._cache_is_updated is True
+
+    @pytest.mark.asyncio
+    async def test_tick_uses_updates_runner_only(self, runner):
+        runner._cache_is_updated = True
+        runner._updates._check_updates = AsyncMock()
+        runner._chat._check_chats = AsyncMock()
+        runner._order._check_orders = AsyncMock()
+        runner._review._check_reviews = AsyncMock()
+        runner._purchase._check_purchases = AsyncMock()
+        await runner._cache_runner(None, None)
+        runner._updates._check_updates.assert_awaited_once()
+        runner._chat._check_chats.assert_not_awaited()
+        runner._order._check_orders.assert_not_awaited()
+        runner._review._check_reviews.assert_not_awaited()
+        runner._purchase._check_purchases.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_watched_categories_are_still_checked(self, runner):
+        runner._cache_is_updated = True
+        runner._updates._check_updates = AsyncMock()
+        runner._category._check_lot_categories = AsyncMock()
+        await runner._cache_runner(["cat-1"], None)
+        runner._category._check_lot_categories.assert_awaited_once_with(["cat-1"])
+
+    @pytest.mark.asyncio
+    async def test_updates_error_is_reported_and_raised_for_backoff(self, runner):
+        runner._cache_is_updated = True
+        runner._updates._check_updates = AsyncMock(side_effect=fpx_err.FpxGetUpdatesError("boom"))
+        runner._handle_error = AsyncMock()
+        with pytest.raises(fpx_err.FpxGetUpdatesError):
+            await runner._cache_runner(None, None)
+        runner._handle_error.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_switching_mode_in_start_polling_warms_up_again(self, runner):
+        runner._run_loop = AsyncMock()
+        runner._cache_is_updated = True
+        await runner.start_polling(is_background=False, legacy_polling=True)
+        assert runner._legacy_polling is True
+        assert runner._cache_is_updated is False
+        runner._cache_is_updated = True
+        await runner.start_polling(is_background=False, legacy_polling=True)
+        assert runner._cache_is_updated is True
+        await runner.start_polling(is_background=False)
+        assert runner._legacy_polling is False
+        assert runner._cache_is_updated is False
 
 
 class TestHandleError:
