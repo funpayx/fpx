@@ -45,12 +45,14 @@ class TestCompareChatCache:
         assert isinstance(result[0], Message)
         assert result[0].text == "привет"
 
-    def test_stop_words_are_filtered_out(self, chat_runner, runner):
+    def test_system_phrase_in_preview_does_not_hide_chat(self, chat_runner, runner):
+        """По превью не отличить оповещение от покупателя, написавшего «я оплатил заказ»."""
         runner._cache["old_msgs"] = []
         runner._cache["msgs"] = [
-            {"sender": "A", "chat_id": "1", "last_msg": {"node_id": 1, "message": "Покупатель оплатил заказ"}}
+            {"sender": "A", "chat_id": "1", "last_msg": {"node_id": 1, "message": "Я оплатил заказ, где товар?"}}
         ]
-        assert chat_runner._compare_chat_cache() == []
+        result = chat_runner._compare_chat_cache()
+        assert [message.chat_id for message in result] == ["1"]
 
 
 class TestUpdateChatCache:
@@ -405,3 +407,104 @@ class TestCheckChats:
         await chat_runner._check_chats()
         runner._account.chat.get_chat_data.assert_awaited_once()
         assert chat_runner.get_last_id("chat-1") == "11"
+
+    @pytest.mark.asyncio
+    async def test_first_change_delivers_every_message_after_previous_snapshot(self, chat_runner, runner):
+        """Логин и пароль за один тик: оба сообщения доходят, а не только последнее."""
+        runner._cache["msgs"] = [chat_cache_entry("chat-1", 10, "Здравствуйте")]
+        runner._account.chat.get_chats = AsyncMock(return_value=[chat_widget("chat-1", 12, "пароль")])
+        runner._account.chat.get_chat_data = AsyncMock(
+            return_value=MagicMock(last_messages=[buyer_message(11, "логин"), buyer_message(12, "пароль")])
+        )
+        chat_runner._trigger_message_handlers = AsyncMock()
+
+        await chat_runner._check_chats()
+
+        runner._account.chat.get_chat_data.assert_awaited_once_with("chat-1", 10)
+        assert dispatched_texts(chat_runner) == ["логин", "пароль"]
+        assert chat_runner.get_last_id("chat-1") == "12"
+
+    @pytest.mark.asyncio
+    async def test_new_chat_starts_after_oldest_known_message(self, chat_runner, runner):
+        """Чата не было в прошлом снимке: отсчёт от самого старого известного сообщения, как в Cardinal."""
+        runner._cache["msgs"] = [chat_cache_entry("chat-1", 10, "a"), chat_cache_entry("chat-2", 20, "b")]
+        runner._account.chat.get_chats = AsyncMock(
+            return_value=[
+                chat_widget("chat-1", 10, "a"),
+                chat_widget("chat-2", 20, "b"),
+                chat_widget("chat-3", 32, "есть в наличии?"),
+            ]
+        )
+        runner._account.chat.get_chat_data = AsyncMock(
+            return_value=MagicMock(
+                last_messages=[buyer_message(31, "Здравствуйте"), buyer_message(32, "есть в наличии?")]
+            )
+        )
+        chat_runner._trigger_message_handlers = AsyncMock()
+
+        await chat_runner._check_chats()
+
+        runner._account.chat.get_chat_data.assert_awaited_once_with("chat-3", 10)
+        assert dispatched_texts(chat_runner) == ["Здравствуйте", "есть в наличии?"]
+
+    @pytest.mark.asyncio
+    async def test_failed_fetch_keeps_the_baseline_for_the_next_attempt(self, chat_runner, runner):
+        """Упавший запрос не сдвигает точку отсчёта на новый снимок."""
+        runner._cache["msgs"] = [chat_cache_entry("chat-1", 10, "Здравствуйте")]
+        runner._account.chat.get_chats = AsyncMock(return_value=[chat_widget("chat-1", 12, "пароль")])
+        runner._account.chat.get_chat_data = AsyncMock(side_effect=Exception("timeout"))
+
+        await chat_runner._check_chats()
+
+        assert chat_runner.get_last_id("chat-1") == "10"
+        runner._handle_error.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_buyer_message_with_system_phrase_is_dispatched(self, chat_runner, runner):
+        runner._cache["msgs"] = [chat_cache_entry("chat-1", 10, "Здравствуйте")]
+        runner._account.chat.get_chats = AsyncMock(
+            return_value=[chat_widget("chat-1", 11, "Я оплатил заказ, где товар?")]
+        )
+        runner._account.chat.get_chat_data = AsyncMock(
+            return_value=MagicMock(last_messages=[buyer_message(11, "Я оплатил заказ, где товар?")])
+        )
+        chat_runner._trigger_message_handlers = AsyncMock()
+
+        await chat_runner._check_chats()
+
+        assert dispatched_texts(chat_runner) == ["Я оплатил заказ, где товар?"]
+
+    @pytest.mark.asyncio
+    async def test_system_notifications_are_not_dispatched(self, chat_runner, runner):
+        """Оповещение FunPay не попадает в on_message, но и не задерживает сообщения рядом с ним."""
+        runner._cache["msgs"] = [chat_cache_entry("chat-1", 10, "Здравствуйте")]
+        runner._account.chat.get_chats = AsyncMock(return_value=[chat_widget("chat-1", 12, "Покупатель оплатил заказ")])
+        notice = Message(
+            node_msg_id=12, sender="FunPay", chat_id="chat-1", text="Покупатель оплатил заказ", is_system=True
+        )
+        runner._account.chat.get_chat_data = AsyncMock(
+            return_value=MagicMock(last_messages=[buyer_message(11, "мой ник Roblox_1"), notice])
+        )
+        chat_runner._trigger_message_handlers = AsyncMock()
+
+        await chat_runner._check_chats()
+
+        assert dispatched_texts(chat_runner) == ["мой ник Roblox_1"]
+        assert chat_runner.get_last_id("chat-1") == "12"
+
+
+def chat_cache_entry(chat_id, node_msg_id, text, sender="Alice"):
+    """Запись кеша чатов в том виде, в каком её пишет _update_chat_cache."""
+    return {"sender": sender, "chat_id": chat_id, "last_msg": {"node_id": node_msg_id, "message": text}}
+
+
+def chat_widget(chat_id, node_msg_id, text, username="Alice"):
+    return MagicMock(username=username, id=chat_id, node_msg_id=node_msg_id, last_msg=text)
+
+
+def buyer_message(node_msg_id, text, sender="Alice", chat_id="chat-1"):
+    return Message(node_msg_id=node_msg_id, sender=sender, chat_id=chat_id, text=text, is_system=False)
+
+
+def dispatched_texts(chat_runner):
+    return [call.args[0].text for call in chat_runner._trigger_message_handlers.await_args_list]
