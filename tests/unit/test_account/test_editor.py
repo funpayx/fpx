@@ -4,7 +4,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from fpx._api._client import FunPayClient
+from fpx._parsers import FpxParser
 from fpx.classes.account.subclasses.editor import FunPayEditor
+from fpx.classes.account.subclasses.lot import LotManager
 from fpx.models.lots import LotEditor
 from fpx.utils import errors as fpx_err
 
@@ -178,3 +181,76 @@ class TestToggleLot:
         account._client.edit_lot.return_value = response(500)
         with pytest.raises(fpx_err.FpxRequestError):
             await editor.toggle_on_lot("1")
+
+
+class FakeLotEditorPage:
+    """Редактор лота на стороне FunPay: отдаёт форму и сохраняет то, что пришло в offerSave."""
+
+    def __init__(self, active: bool) -> None:
+        self.price = "100"
+        self.active = active
+        self.saved: list[dict] = []
+
+    def page(self) -> str:
+        return f"""
+        <form class="form-offer-editor">
+          <input type="hidden" name="csrf_token" value="tok">
+          <input type="hidden" name="form_created_at" value="1700000000">
+          <input type="hidden" name="offer_id" value="42">
+          <input type="hidden" name="node_id" value="99">
+          <input type="hidden" name="location" value="">
+          <input type="hidden" name="deleted" value="">
+          <select name="fields[type]"><option value="1" selected>Робуксы</option></select>
+          <input class="form-control" type="text" name="price" value="{self.price}">
+          <input type="checkbox" name="active" {"checked" if self.active else ""}>
+          <input type="checkbox" name="auto_delivery" checked>
+        </form>
+        """
+
+    async def execute(self, method, url, **kwargs):
+        if method == "GET":
+            return MagicMock(status_code=200, text=self.page())
+        data = kwargs["data"]
+        self.saved.append(data)
+        self.price = data["price"]
+        self.active = data.get("active") == "on"
+        return MagicMock(status_code=200)
+
+
+def editor_over(page: FakeLotEditorPage) -> FunPayEditor:
+    """Настоящие парсер, LotManager и FunPayClient поверх страницы редактора."""
+    account = MagicMock()
+    account._parser = FpxParser()
+    account._request_engine.execute = page.execute
+    account._client = FunPayClient(account, MagicMock())
+    account.lot = LotManager(account)
+    return FunPayEditor(account)
+
+
+class TestLotStateSurvivesEdits:
+    @pytest.mark.asyncio
+    async def test_price_change_keeps_inactive_lot_off(self):
+        page = FakeLotEditorPage(active=False)
+        assert await editor_over(page).change_lot_price("42", "150") is True
+        assert page.price == "150"
+        assert page.active is False
+        assert page.saved[-1]["auto_delivery"] == "on"
+
+    @pytest.mark.asyncio
+    async def test_price_change_keeps_active_lot_on(self):
+        page = FakeLotEditorPage(active=True)
+        assert await editor_over(page).change_lot_price("42", "150") is True
+        assert page.active is True
+        assert page.saved[-1]["auto_delivery"] == "on"
+
+    @pytest.mark.asyncio
+    async def test_toggle_off_switches_active_lot_off(self):
+        page = FakeLotEditorPage(active=True)
+        assert await editor_over(page).toggle_off_lot("42") is True
+        assert page.active is False
+
+    @pytest.mark.asyncio
+    async def test_toggle_on_switches_inactive_lot_on(self):
+        page = FakeLotEditorPage(active=False)
+        assert await editor_over(page).toggle_on_lot("42") is True
+        assert page.active is True

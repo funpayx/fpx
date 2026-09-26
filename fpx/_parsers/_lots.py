@@ -136,6 +136,12 @@ class LotParser(BaseParser):
                         result[name] = t.get_text().strip()
                 except Exception as e:
                     logger.debug(f"При парсинге конкретного текстового поля произошла ошибка: {e}")
+        # Чекбоксы («Активное», «Автовыдача», «Деактивировать после продажи»)
+        form = soup.select_one("form.form-offer-editor") or soup
+        for checkbox in form.find_all("input", attrs={"type": "checkbox"}):
+            name = cls._get_str_attr(checkbox, "name")
+            if name and checkbox.has_attr("checked"):
+                result[name] = cls._get_str_attr(checkbox, "value") or "on"
         return result
 
     @classmethod
