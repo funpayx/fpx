@@ -4,6 +4,7 @@ import logging
 import re
 from typing import Any, Callable
 
+from fpx.classes.runner.subclasses.router import handler_signature
 from fpx.fsm import FSMContext
 from fpx.models.chat import Message
 from fpx.utils import errors as fpx_err
@@ -71,7 +72,7 @@ class ChatRunner:
                 if full_text == cmd_lower or full_text.startswith(cmd_lower + " "):
                     args_str = full_text[len(cmd_lower) :].strip()
                     args = args_str.split() if args_str else []
-                    sig = inspect.signature(target_function)
+                    sig = handler_signature(target_function)
                     text_param_names = [
                         name
                         for name, param in sig.parameters.items()

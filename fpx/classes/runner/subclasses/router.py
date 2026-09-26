@@ -11,6 +11,22 @@ Decorator = Callable[[HandlerFunc], HandlerFunc]
 Middleware = Callable[[Any, Callable[[Any], Awaitable[Any]]], Awaitable[Any]]
 
 
+def handler_signature(func: Callable[..., Any]) -> inspect.Signature:
+    """Сигнатура хендлера со строковыми аннотациями, вычисленными по модулю хендлера."""
+    signature = inspect.signature(func)
+    namespace = getattr(inspect.unwrap(func), "__globals__", {})
+    params = []
+    for param in signature.parameters.values():
+        annotation = param.annotation
+        if isinstance(annotation, str):
+            try:
+                annotation = eval(annotation, namespace)
+            except Exception:
+                pass
+        params.append(param.replace(annotation=annotation))
+    return signature.replace(parameters=params)
+
+
 def _call_dependency(dep_func: Callable[..., Any], ev: Any) -> Any:
     """Вызывает зависимость: без аргументов, если сигнатура пустая, иначе с event."""
     if len(inspect.signature(dep_func).parameters) == 0:
@@ -62,7 +78,7 @@ class Router:
         generators_to_close: list[Any] = []
 
         async def endpoint(ev: Any) -> None:
-            sig = inspect.signature(h_func)
+            sig = handler_signature(h_func)
             kwargs: dict[str, Any] = {}
             arg_index = 0
             nonlocal generators_to_close
