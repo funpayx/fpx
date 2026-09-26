@@ -23,46 +23,25 @@ class ChatRunner:
         """
         Сравнивает старый кеш сообщений с новым, если находит отличия,
         выносит сообщение в список,
-        после чего возвращает полный список
+        после чего возвращает полный список.
+
+        Текст превью не фильтруется: по нему не отличить оповещение FunPay
+        от сообщения покупателя с теми же словами («я оплатил заказ»).
+        Оповещения отсекаются после загрузки чата, по флагу is_system.
         """
         result: list[Message] = []
         if self.runner._cache["msgs"] != self.runner._cache["old_msgs"]:
             for message in self.runner._cache["msgs"]:
                 if message not in self.runner._cache["old_msgs"]:
-                    stop_words = (
-                        "оплатил заказ",
-                        "можете перейти в discord",
-                        "написал отзыв",
-                        "изменил отзыв",
-                        "вернул деньги",
-                        "подтвердил успешное выполнение",
-                        "удалил отзыв",
-                        "оплатив замовлення",
-                        "написав відгук",
-                        "змінив відгук",
-                        "повернув гроші",
-                        "підтвердив успішне виконання",
-                        "видалив відгук",
-                        "has paid for order",
-                        "you can use Discord",
-                        "given feedback",
-                        "changed feedback",
-                        "has refunded",
-                        "has confirmed that",
-                        "deleted their feedback",
-                        "replied to their",
-                    )
-                    msg_lower = message["last_msg"]["message"].lower()
-                    if not any(word in msg_lower for word in stop_words):
-                        result.append(
-                            Message(
-                                node_msg_id=message["last_msg"]["node_id"],
-                                sender=message["sender"],
-                                chat_id=message["chat_id"],
-                                text=message["last_msg"]["message"],
-                                is_system=False,
-                            )
+                    result.append(
+                        Message(
+                            node_msg_id=message["last_msg"]["node_id"],
+                            sender=message["sender"],
+                            chat_id=message["chat_id"],
+                            text=message["last_msg"]["message"],
+                            is_system=False,
                         )
+                    )
         return result
 
     async def _update_chat_cache(self) -> None:
@@ -220,21 +199,39 @@ class ChatRunner:
     def get_last_id(self, chat_id: str | int) -> str | None:
         return self._chat_last_ids.get(chat_id)
 
+    def _previous_last_ids(self) -> dict[str | int, int]:
+        """ID последнего сообщения каждого чата на прошлом тике."""
+        return {
+            chat["chat_id"]: int(chat["last_msg"]["node_id"])
+            for chat in self.runner._cache["old_msgs"]
+            if chat["last_msg"]["node_id"]
+        }
+
     async def _check_chats(self) -> None:
         await self._update_chat_cache()
         chats = self._compare_chat_cache()
         if chats:
+            previous = self._previous_last_ids()
+            # Чата не было в прошлом снимке: новое в нём всё, что новее самого старого
+            # известного сообщения. ID сообщений FunPay сквозные, так же считает FunPayCardinal.
+            watermark = min(previous.values(), default=0)
 
             async def process_single_chat(chat_cache_obj: Message) -> None:
                 chat_msg = None
                 try:
-                    last_node_id = self.get_last_id(chat_cache_obj.chat_id) or 0
-                    msg_obj = await self.runner._account.chat.get_chat_data(chat_cache_obj.chat_id, last_node_id)
+                    chat_id = chat_cache_obj.chat_id
+                    last_node_id = self.get_last_id(chat_id) or previous.get(chat_id) or watermark
+                    if last_node_id and chat_id not in self._chat_last_ids:
+                        # Точка отсчёта запоминается до запроса: если он упадёт, следующая попытка
+                        # начнёт с неё, а не со снимка, в котором эти сообщения уже учтены.
+                        self._chat_last_ids[chat_id] = str(last_node_id)
+                    msg_obj = await self.runner._account.chat.get_chat_data(chat_id, last_node_id)
                     messages = msg_obj.last_messages
                     for message in messages:
                         if message is None:
                             return
-                        if int(message.node_msg_id) > int(last_node_id):
+                        # Оповещения FunPay (оплата, отзыв, возврат) приходят через раннеры заказов и отзывов.
+                        if int(message.node_msg_id) > int(last_node_id) and not message.is_system:
                             # stop_list = ['изображение', 'image', 'зображення']
                             text = message.text
                             chat_msg = Message(
