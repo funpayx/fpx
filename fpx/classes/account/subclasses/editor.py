@@ -15,7 +15,7 @@ class FunPayEditor:
     async def _changing_lot_base(
         self, lot_id: int | str, lot: LotEditor, fining_fields: str | None, new_fields: str | int | None
     ) -> bool:
-        response = await self._account._client.edit_lot(lot, active=True)
+        response = await self._account._client.edit_lot(lot)
         if response.status_code == 200:
             await asyncio.sleep(0.5)
             try:
@@ -175,7 +175,7 @@ class FunPayEditor:
             FpxRequestError: Сервер не ответил
         """
         lot = await self._account.lot._get_lot_editor_details(lot_id)
-        response = await self._account._client.edit_lot(lot)
+        response = await self._account._client.edit_lot(lot, active=False)
         if response.status_code == 200:
             return True
         raise fpx_err.FpxRequestError("Ошибка отправки запроса на изменение деталей лота")
