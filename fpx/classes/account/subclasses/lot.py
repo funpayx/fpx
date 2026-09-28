@@ -178,3 +178,26 @@ class LotManager:
                 raise fpx_err.FpxRequestError(f"Сервер не ответил успешно. Код ошибки: {response.status_code}")
         except Exception as e:
             raise fpx_err.FpxLotCreateError(f"При создании лота произошла ошибка: {e}") from e
+
+    async def set_offers_hidden(self, hide: bool):
+        """
+        Массово скрывает или показывает все лоты аккаунта через настройки профиля.
+
+        Args:
+            hide (bool): True - скрыть лоты, False - показать лоты
+        Retruns:
+            bool: True если удалось скрыть.
+        Raises:
+            FpxRequestError: Ошибка отправки запроса.
+            FpxLotEditingError: Не удалось скрыть все лоты.
+        """
+        if self._account.data.user_id is None:
+            await self._account.profile.get_user_data()
+        try:
+            r = await self._account._client.set_offers_hidden(self._account.data.user_id, hide)
+            if r.status_code == 200:
+                return True
+            else:
+                raise fpx_err.FpxRequestError(f'Сервер не ответил успешно. Код ошибки: {r.status_code} - {r.json()}')
+        except Exception as e:
+            raise fpx_err.FpxLotEditingError('Не удалось скрыть все лоты') from e
