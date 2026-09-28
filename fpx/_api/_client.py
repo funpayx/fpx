@@ -257,3 +257,11 @@ class FunPayClient:
             "POST", "/account/noticeChannel", data={"channel": channel_id, "active": active}
         )
         return r.status_code == 200
+
+    async def set_offers_hidden(self, user_id: str | int, hide: bool) -> Any:
+        payload: dict[str, str | int] = {"userId": user_id, "mode": int(hide)}
+        headers: dict[str, str] = {"X-Requested-With": "XMLHttpRequest"}
+        r = await self._account._request_engine.execute(
+            "POST", "/trade/tradeLockSettings", data=payload, headers=headers
+        )
+        return r

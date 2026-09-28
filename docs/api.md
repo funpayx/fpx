@@ -501,6 +501,19 @@ Raises:
     FpxGetLotEditorInfoError: ошибка поулучения данных редактора
 ```
 
+### `LotManager.set_offers_hidden`
+```
+Массово скрывает или показывает все лоты аккаунта через настройки профиля.
+
+Args:
+    hide (bool): True - скрыть лоты, False - показать лоты
+Retruns:
+    bool: True если удалось скрыть.
+Raises:
+    FpxRequestError: Ошибка отправки запроса.
+    FpxLotEditingError: Не удалось скрыть все лоты.
+```
+
 ### `LotManager.get_lot_info`
 
 ```
