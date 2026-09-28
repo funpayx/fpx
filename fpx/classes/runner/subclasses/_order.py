@@ -4,6 +4,7 @@ from typing import Any
 
 from fpx.fsm import FSMContext
 from fpx.models.account import Order
+from fpx.utils import errors as fpx_err
 from fpx.utils.order_status import OrderStatusKind, classify_order_status
 
 logger = logging.getLogger("fpx.order_runner")
@@ -33,6 +34,51 @@ class OrderRunner:
             result.append(o)
         self.runner._cache["old_orders"] = self.runner._cache["orders"]
         self.runner._cache["orders"] = result
+
+    async def _update_order_page_cache(self) -> None:
+        """
+        Обновляет кеш заказов по первой странице продаж (приём событий через /runner/).
+
+        Страница загружается только по сигналу о новых событиях. Новый заказ всегда
+        на первой странице, а смена статуса видна у заказов с первой страницы.
+        """
+        try:
+            html = await self.runner._account._client.get_my_sells()
+            sells = self.runner._account._parser.parse_my_sells(html)["sells"]
+        except Exception as e:
+            raise fpx_err.FpxGetUserSellsError(f"Не удалось загрузить первую страницу продаж: {e}") from e
+        self.runner._cache["old_orders"] = self.runner._cache["orders"]
+        self.runner._cache["orders"] = [
+            {
+                "order_id": sell["order-id"],
+                "order_time": sell["order-time"],
+                "client_name": sell["client-name"],
+                "price": sell["price"],
+                "name": sell["name"],
+                "status": sell["status"],
+            }
+            for sell in sells
+        ]
+
+    def _compare_order_statuses(self) -> list[Order]:
+        """
+        Находит новые заказы и заказы со сменившимся статусом.
+
+        Остальные поля строки меняются и без события: дата «Сегодня, 23:59»
+        в полночь становится «Вчера, 23:59», поэтому в сравнении они не участвуют.
+        """
+        old_statuses = {order["order_id"]: order["status"] for order in self.runner._cache["old_orders"]}
+        return [
+            Order(**order)
+            for order in self.runner._cache["orders"]
+            if old_statuses.get(order["order_id"]) != order["status"]
+        ]
+
+    async def _check_order_page(self) -> None:
+        await self._update_order_page_cache()
+        orders = self._compare_order_statuses()
+        if orders:
+            await asyncio.gather(*(self._process_single_order(order) for order in orders))
 
     def _compare_order_cache(self) -> list[Order]:
         """

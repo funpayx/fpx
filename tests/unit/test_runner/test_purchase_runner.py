@@ -7,6 +7,7 @@ import pytest
 from fpx.classes.runner.subclasses._purchase import PurchaseRunner
 from fpx.classes.runner.subclasses.router import Router
 from fpx.models.account import Purchase
+from fpx.utils import errors as fpx_err
 
 
 def make_purchase(**overrides):
@@ -262,3 +263,71 @@ class TestCheckPurchases:
         runner._cache["old_purchases"] = [{"dummy": True}]
         await purchase_runner._check_purchases()
         runner._account.order.get_order_details.assert_awaited_once_with("99")
+
+
+def make_row(order_id, status, date="Сегодня, 12:00"):
+    """Строка покупки в том виде, в котором её отдаёт parse_my_sells."""
+    return {
+        "order-id": order_id,
+        "order-time": date,
+        "client-name": "Seller",
+        "price": 50.0,
+        "name": "Товар",
+        "status": status,
+        "category": "Roblox",
+        "amount": 1,
+        "topup_data": None,
+    }
+
+
+def cached(order_id, status, date="Сегодня, 12:00"):
+    return {
+        "order_id": order_id,
+        "order_time": date,
+        "client_name": "Seller",
+        "price": 50.0,
+        "name": "Товар",
+        "status": status,
+    }
+
+
+class TestPurchasePage:
+    """Первая страница покупок: так раннер /runner/ сверяет покупки по сигналу FunPay."""
+
+    @pytest.mark.asyncio
+    async def test_update_builds_cache_from_first_page(self, purchase_runner, runner):
+        runner._account._client.get_my_purchases = AsyncMock(return_value="<html>")
+        runner._account._parser.parse_my_sells = MagicMock(return_value={"sells": [make_row("P1", "Оплачен")]})
+        runner._cache["purchases"] = [cached("OLD", "Закрыт")]
+        await purchase_runner._update_purchase_page_cache()
+        assert runner._cache["old_purchases"] == [cached("OLD", "Закрыт")]
+        assert runner._cache["purchases"] == [cached("P1", "Оплачен")]
+
+    @pytest.mark.asyncio
+    async def test_update_wraps_errors(self, purchase_runner, runner):
+        runner._account._client.get_my_purchases = AsyncMock(side_effect=Exception("down"))
+        with pytest.raises(fpx_err.FpxGetUserPurchasesError):
+            await purchase_runner._update_purchase_page_cache()
+
+    def test_compare_reports_new_purchases_and_status_changes_only(self, purchase_runner, runner):
+        runner._cache["old_purchases"] = [cached("P1", "Оплачен", "Сегодня, 23:59"), cached("P2", "Оплачен")]
+        runner._cache["purchases"] = [
+            cached("P3", "Оплачен"),
+            cached("P1", "Оплачен", "Вчера, 23:59"),
+            cached("P2", "Возврат"),
+        ]
+        result = purchase_runner._compare_purchase_statuses()
+        assert [(order.order_id, order.status) for order in result] == [("P3", "Оплачен"), ("P2", "Возврат")]
+        assert all(isinstance(order, Purchase) for order in result)
+
+    @pytest.mark.asyncio
+    async def test_check_processes_changed_purchases(self, purchase_runner, runner):
+        runner._cache["purchases"] = [cached("P1", "Оплачен")]
+        runner._account._client.get_my_purchases = AsyncMock(return_value="<html>")
+        runner._account._parser.parse_my_sells = MagicMock(
+            return_value={"sells": [make_row("P1", "Закрыт"), make_row("P0", "Оплачен")]}
+        )
+        purchase_runner._process_single_purchase = AsyncMock()
+        await purchase_runner._check_purchase_page()
+        processed = [call.args[0].order_id for call in purchase_runner._process_single_purchase.await_args_list]
+        assert processed == ["P1", "P0"]

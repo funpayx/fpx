@@ -4,6 +4,7 @@ from typing import Any
 
 from fpx.fsm import FSMContext
 from fpx.models.account import Purchase
+from fpx.utils import errors as fpx_err
 from fpx.utils.order_status import OrderStatusKind, classify_order_status
 
 logger = logging.getLogger("fpx.purchase_runner")
@@ -36,6 +37,51 @@ class PurchaseRunner:
         else:
             self.runner._cache["old_purchases"] = self.runner._cache["purchases"]
         self.runner._cache["purchases"] = result
+
+    async def _update_purchase_page_cache(self) -> None:
+        """
+        Обновляет кеш покупок по первой странице покупок (приём событий через /runner/).
+
+        Страница загружается только по сигналу о новых событиях. Новая покупка всегда
+        на первой странице, а смена статуса видна у покупок с первой страницы.
+        """
+        try:
+            html = await self.runner._account._client.get_my_purchases()
+            purchases = self.runner._account._parser.parse_my_sells(html)["sells"]
+        except Exception as e:
+            raise fpx_err.FpxGetUserPurchasesError(f"Не удалось загрузить первую страницу покупок: {e}") from e
+        self.runner._cache["old_purchases"] = self.runner._cache["purchases"]
+        self.runner._cache["purchases"] = [
+            {
+                "order_id": purchase["order-id"],
+                "order_time": purchase["order-time"],
+                "client_name": purchase["client-name"],
+                "price": purchase["price"],
+                "name": purchase["name"],
+                "status": purchase["status"],
+            }
+            for purchase in purchases
+        ]
+
+    def _compare_purchase_statuses(self) -> list[Purchase]:
+        """
+        Находит новые покупки и покупки со сменившимся статусом.
+
+        Остальные поля строки меняются и без события: дата «Сегодня, 23:59»
+        в полночь становится «Вчера, 23:59», поэтому в сравнении они не участвуют.
+        """
+        old_statuses = {order["order_id"]: order["status"] for order in self.runner._cache["old_purchases"]}
+        return [
+            Purchase(**order)
+            for order in self.runner._cache["purchases"]
+            if old_statuses.get(order["order_id"]) != order["status"]
+        ]
+
+    async def _check_purchase_page(self) -> None:
+        await self._update_purchase_page_cache()
+        orders = self._compare_purchase_statuses()
+        if orders:
+            await asyncio.gather(*(self._process_single_purchase(order) for order in orders))
 
     def _compare_purchase_cache(self) -> list[Purchase]:
         """

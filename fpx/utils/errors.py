@@ -77,6 +77,13 @@ class FpxGetChatsError(FpxAccountError):
         super().__init__(message)
 
 
+class FpxGetUpdatesError(FpxAccountError):
+    """Не удалось получить обновления через /runner/."""
+
+    def __init__(self, message: str = "Не удалось получить обновления через /runner/") -> None:
+        super().__init__(message)
+
+
 class FpxMessageDeliverError(FpxAccountError):
     """Сообщение не было доставлено."""
 

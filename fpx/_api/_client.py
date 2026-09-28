@@ -24,6 +24,18 @@ class FunPayClient:
 
         return r
 
+    async def runner_request(self, objects: list[dict[str, Any]]) -> dict[str, Any]:
+        """
+        Запрашивает объекты через POST /runner/, как это делает сайт FunPay.
+
+        Объект описывается типом, ID и тегом последней известной версии.
+        FunPay возвращает только объекты, чей тег отличается от переданного.
+        """
+        payload = {"objects": json.dumps(objects), "request": "false"}
+        headers = {"X-Requested-With": "XMLHttpRequest"}
+        r = await self._account._request_engine.execute("POST", "/runner/", data=payload, headers=headers)
+        return cast(dict[str, Any], r.json())
+
     async def get_chats_page(self) -> str:
         r = await self._account._request_engine.execute("GET", "/chat/")
         return r.text
