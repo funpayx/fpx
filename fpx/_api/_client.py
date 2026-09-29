@@ -265,3 +265,22 @@ class FunPayClient:
             "POST", "/trade/tradeLockSettings", data=payload, headers=headers
         )
         return r
+
+    async def get_transactions_page(self) -> str:
+        r = await self._account._request_engine.execute("GET", "/account/balance")
+        return r.text
+
+    async def get_transactions(
+        self,
+        user_id: str | int,
+        filter: str = "",
+        from_transaction_id: str | int = "",
+    ) -> str:
+        payload = {
+            "user_id": str(user_id),
+            "filter": filter or "",
+            "continue": "" if from_transaction_id in (None, "", 0, "0") else str(from_transaction_id),
+        }
+        headers = {"X-Requested-With": "XMLHttpRequest"}
+        r = await self._account._request_engine.execute("POST", "/users/transactions", data=payload, headers=headers)
+        return r.text
