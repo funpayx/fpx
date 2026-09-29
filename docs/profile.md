@@ -97,6 +97,33 @@ print(url)
 
 Возвращает `str`.
 
+### `await fp.account.profile.get_transactions_page(from_transaction_id=None, filter="")`
+
+Одна страница истории транзакций. Без аргументов - первая пачка с `GET /account/balance`. С фильтром или курсором - `POST /users/transactions`.
+
+```python
+page = await fp.account.profile.get_transactions_page()
+print(page.next_transaction_id)
+for tx in page.transactions:
+    print(f"{tx.date} {tx.type} {tx.amount} {tx.currency} ({tx.status})")
+```
+
+Фильтр FunPay: `""` (все), `payment`, `withdraw`, `order`, `other`.
+
+Возвращает `TransactionsPage`.
+
+### `await fp.account.profile.get_transactions(limit=0, filter="", from_transaction_id=None)`
+
+Вся история транзакций (или до `limit`). Сама листает страницы.
+
+```python
+txs = await fp.account.profile.get_transactions(limit=25, filter="order")
+for tx in txs:
+    print(f"{tx.transaction_id}: {tx.description} — {tx.amount} {tx.currency}")
+```
+
+`limit=0` - вернёт все операции. Возвращает `list[Transaction]`.
+
 ### `await fp.account.profile.update_notice_channel(channel, enabled)`
 
 Включает или выключает канал уведомлений. FunPay: `POST /account/noticeChannel`.
