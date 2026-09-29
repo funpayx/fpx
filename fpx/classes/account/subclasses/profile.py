@@ -328,6 +328,7 @@ class ProfileManager:
     ) -> list[Transaction]:
         """
         История транзакций аккаунта. Пагинирует страницы FunPay.
+        Методу нужно время на сбор всех транзакций, подождите перед паникой.
 
         Args:
             limit (int): Сколько операций вернуть (0 - все доступные).
@@ -340,6 +341,8 @@ class ProfileManager:
             FpxGetProfileError: Ошибка запроса истории транзакций
         """
         collected: list[Transaction] = []
+        seen_tx: set[str] = set()
+        seen_cursors: set[str] = set()
         cursor = from_transaction_id
         first = True
         while True:
@@ -347,10 +350,15 @@ class ProfileManager:
                 await asyncio.sleep(3)
             first = False
             page = await self.get_transactions_page(from_transaction_id=cursor, filter=filter)
-            collected.extend(page.transactions)
+            new = [t for t in page.transactions if t.transaction_id not in seen_tx]
+            if not new:
+                return collected
+            seen_tx.update(t.transaction_id for t in new)
+            collected.extend(new)
             if limit != 0 and len(collected) >= limit:
                 return collected[:limit]
             next_id = page.next_transaction_id
-            if not next_id or str(next_id) == str(cursor or ""):
+            if not next_id or str(next_id) in seen_cursors or str(next_id) == str(cursor or ""):
                 return collected
+            seen_cursors.add(str(next_id))
             cursor = next_id
