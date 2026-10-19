@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Optional, cast
 
 from fpx.models.lots import LotInfo
@@ -114,6 +115,7 @@ class Order:
     order_id: Optional[str] = None
     chat_id: Optional[str] = None
     order_time: Optional[str] = None
+    order_datetime: Optional[datetime] = None
     description: Optional[str] = None
     client_name: Optional[str] = None
     price: Optional[float] = None
@@ -151,6 +153,7 @@ class Purchase:
     order_id: Optional[str] = None
     chat_id: Optional[str] = None
     order_time: Optional[str] = None
+    order_datetime: Optional[datetime] = None
     description: Optional[str] = None
     client_name: Optional[str] = None
     price: Optional[float] = None

@@ -6,6 +6,7 @@ from typing import Any
 from bs4 import BeautifulSoup, Tag
 
 from fpx.utils import errors as fpx_err
+from fpx.utils.dates import parse_funpay_datetime
 
 from ._base import BaseParser
 
@@ -83,6 +84,15 @@ class OrderParser(BaseParser):
                     result["review"].update({"text": "", "stars": 0, "answer": ""})
             else:
                 result["review"] = {"text": "", "stars": 0, "answer": ""}
+            result["order_datetime"] = None
+            try:
+                for strong in soup.select("div.param-item strong"):
+                    if strong.find("span", class_="text-nowrap"):
+                        raw = strong.find(string=True, recursive=False) or ""
+                        result["order_datetime"] = parse_funpay_datetime(str(raw))
+                        break
+            except Exception as e:
+                logger.debug(f"Не удалось распарсить дату заказа: {e}")
         except fpx_err.FpxNullDataError:
             raise
         except fpx_err.FpxParseError:
