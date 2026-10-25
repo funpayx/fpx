@@ -96,6 +96,15 @@ class FunPayTools:
                     pass
             raise
 
+    @property
+    def read_messages(self):
+        """Открывать ли чаты при получении сообщений. False: чаты остаются непрочитанными."""
+        return self.runner._read_messages
+
+    @read_messages.setter
+    def read_messages(self, value: bool) -> None:
+        self.runner._read_messages = value
+
     async def __aenter__(self) -> "FunPayTools":
         # TODO(#20): refresh_cookies_cycle станет типизированным вызовом после аннотации fpx/classes/account
         self._refresh_task = asyncio.create_task(self.account.refresh_cookies_cycle())  # type: ignore[no-untyped-call]

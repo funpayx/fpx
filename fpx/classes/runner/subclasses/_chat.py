@@ -216,37 +216,36 @@ class ChatRunner:
             # Чата не было в прошлом снимке: новое в нём всё, что новее самого старого
             # известного сообщения. ID сообщений FunPay сквозные, так же считает FunPayCardinal.
             watermark = min(previous.values(), default=0)
-
             async def process_single_chat(chat_cache_obj: Message) -> None:
                 chat_msg = None
                 try:
                     chat_id = chat_cache_obj.chat_id
                     last_node_id = self.get_last_id(chat_id) or previous.get(chat_id) or watermark
                     if last_node_id and chat_id not in self._chat_last_ids:
-                        # Точка отсчёта запоминается до запроса: если он упадёт, следующая попытка
-                        # начнёт с неё, а не со снимка, в котором эти сообщения уже учтены.
                         self._chat_last_ids[chat_id] = str(last_node_id)
-                    msg_obj = await self.runner._account.chat.get_chat_data(chat_id, last_node_id)
-                    messages = msg_obj.last_messages
+                    if self.runner._read_messages:
+                        msg_obj = await self.runner._account.chat.get_chat_data(chat_id, last_node_id)
+                        messages = msg_obj.last_messages
+                    else:
+                        # Чат не открываем (иначе FunPay пометит его прочитанным),
+                        # поэтому берём только превью последнего сообщения из списка чатов.
+                        messages = [chat_cache_obj]
                     for message in messages:
                         if message is None:
                             return
-                        # Оповещения FunPay (оплата, отзыв, возврат) приходят через раннеры заказов и отзывов.
                         if int(message.node_msg_id) > int(last_node_id) and not message.is_system:
-                            # stop_list = ['изображение', 'image', 'зображення']
-                            text = message.text
                             chat_msg = Message(
                                 node_msg_id=message.node_msg_id,
                                 sender=message.sender,
-                                chat_id=chat_cache_obj.chat_id,
-                                text=text,
+                                chat_id=chat_id,
+                                text=message.text,
                                 is_system=message.is_system,
                             )
                             chat_msg._client = self.runner
                             await self._trigger_message_handlers(chat_msg)
                     if messages:
                         new_max_id = max(int(m.node_msg_id) for m in messages)
-                        self._chat_last_ids[chat_cache_obj.chat_id] = str(new_max_id)
+                        self._chat_last_ids[chat_id] = str(new_max_id)
                 except Exception as e:
                     logger.debug(f"Ошибка при параллельной обработке чата {chat_cache_obj.chat_id}: {e}", exc_info=True)
                     await self.runner._handle_error(event=chat_msg, exception=e)

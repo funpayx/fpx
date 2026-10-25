@@ -89,7 +89,10 @@ class UpdatesRunner:
             self._events_dirty = True
         if chats:
             self._collect_changed(chats)
-        loaded = await self._load_pending()
+        if self.runner._read_messages:
+            loaded = await self._load_pending()
+        else:
+            loaded = self._preview_pending()
         if any(message["is_system"] for item in loaded for message in item.new):
             self._events_dirty = True
         error: Exception | None = None
@@ -184,6 +187,20 @@ class UpdatesRunner:
                 node = data.get("node") or {}
                 nodes[str(node.get("id", obj.get("id")))] = data
             loaded.extend(self._parse_node(chat, nodes.get(chat.id)) for chat in batch)
+        return loaded
+
+    def _preview_pending(self) -> list[_LoadedChat]:
+        loaded: list[_LoadedChat] = []
+        for chat in self._pending.values():
+            preview = {
+                "node_id": chat.node_msg_id,
+                "author_id": -1,
+                "sender": chat.username,
+                "message": chat.last_msg,
+                "is_system": False,
+            }
+            is_new = chat.is_unread and chat.node_msg_id > self._threshold(chat.id)
+            loaded.append(_LoadedChat(chat=chat, found=True, messages=[preview], new=[preview] if is_new else []))
         return loaded
 
     def _parse_node(self, chat: Chat, data: dict[str, Any] | None) -> _LoadedChat:
