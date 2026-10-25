@@ -216,6 +216,7 @@ class ChatRunner:
             # Чата не было в прошлом снимке: новое в нём всё, что новее самого старого
             # известного сообщения. ID сообщений FunPay сквозные, так же считает FunPayCardinal.
             watermark = min(previous.values(), default=0)
+
             async def process_single_chat(chat_cache_obj: Message) -> None:
                 chat_msg = None
                 try:

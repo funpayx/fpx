@@ -402,6 +402,7 @@ class TestTelegramAndNoticeEndpoints:
         assert args == ("POST", "/account/noticeChannel")
         assert kwargs["data"] == {"channel": "email", "active": False}
 
+
 class TestSetOffersHidden:
     @pytest.mark.asyncio
     async def test_hide_posts_mode_one(self, client, account):

@@ -99,7 +99,7 @@ class PurchaseManager:
                 category=i["category"],
                 amount=i["amount"],
                 topup_data=i.get("topup_data"),
-                order_datetime=i.get('order_datetime')
+                order_datetime=i.get("order_datetime"),
             )
             result.append(order)
             counter += 1

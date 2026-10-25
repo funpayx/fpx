@@ -26,6 +26,22 @@ def _close_async_client_sync(client: httpx.AsyncClient) -> None:
 
 
 class FunPayTools:
+    """
+    Главный объект фреймворка.
+
+    Args:
+        gkey (str): Golden Key из твоих куки.
+        storage (BaseStorage | None): Кастомное хранилище (для продвинутых).
+        proxy (str | httpx.Proxy | None): Прокси (для продвинутых).
+        http_client (httpx.AsyncClient | None): Кастомный клиент (для продвинутых).
+
+    Attributes:
+        read_messages (bool): Открывать ли чаты при получении сообщений. По умолчанию True.
+            False: чаты остаются непрочитанными, хендлеры получают только последнее сообщение
+            чата за тик (подробнее в docs/chat.md).
+        polling_task (asyncio.Task | None): Фоновая задача `Runner.start_polling`, если она запущена.
+    """
+
     def __init__(
         self,
         gkey: str,
