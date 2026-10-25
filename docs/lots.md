@@ -56,7 +56,7 @@ await fp.runner.idle()
 Массово скрывает или показывает все лоты аккаунта (trade lock FunPay: `POST /trade/tradeLockSettings`).
 
 ```python
-await fp.account.lot.set_offers_hidden(True)   # скрыть все лоты
+await fp.account.lot.set_offers_hidden(True)  # скрыть все лоты
 await fp.account.lot.set_offers_hidden(False)  # показать все лоты
 ```
 

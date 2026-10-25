@@ -49,6 +49,7 @@ class Runner:
         self.is_running = True
         self._polling_task: asyncio.Task[None] | None = None
         self._polling_error_reported = False
+        self._read_messages: bool = True
 
     async def idle(self) -> None:
         """

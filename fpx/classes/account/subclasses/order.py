@@ -39,7 +39,7 @@ class OrderManager:
                 review=data["review"],
                 description=data.get("desc"),
                 chat_id=data["chat_id"],
-                order_datetime=data.get('order_datetime')
+                order_datetime=data.get("order_datetime"),
             )
         except Exception as e:
             raise fpx_err.FpxGetOrderInfoError(f"При выполнении {stage} произошла ошибка: {e}") from e

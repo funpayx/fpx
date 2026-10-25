@@ -198,6 +198,6 @@ class LotManager:
             if r.status_code == 200:
                 return True
             else:
-                raise fpx_err.FpxRequestError(f'Сервер не ответил успешно. Код ошибки: {r.status_code} - {r.json()}')
+                raise fpx_err.FpxRequestError(f"Сервер не ответил успешно. Код ошибки: {r.status_code} - {r.json()}")
         except Exception as e:
-            raise fpx_err.FpxLotEditingError('Не удалось скрыть все лоты') from e
+            raise fpx_err.FpxLotEditingError("Не удалось скрыть все лоты") from e

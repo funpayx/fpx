@@ -277,7 +277,7 @@ class ProfileManager:
         self,
         from_transaction_id: str | int | None = None,
         filter: str = "",
-        ) -> TransactionsPage:
+    ) -> TransactionsPage:
         """
         Одна страница истории транзакций.
 

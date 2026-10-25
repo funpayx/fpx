@@ -26,6 +26,22 @@ def _close_async_client_sync(client: httpx.AsyncClient) -> None:
 
 
 class FunPayTools:
+    """
+    Главный объект фреймворка.
+
+    Args:
+        gkey (str): Golden Key из твоих куки.
+        storage (BaseStorage | None): Кастомное хранилище (для продвинутых).
+        proxy (str | httpx.Proxy | None): Прокси (для продвинутых).
+        http_client (httpx.AsyncClient | None): Кастомный клиент (для продвинутых).
+
+    Attributes:
+        read_messages (bool): Открывать ли чаты при получении сообщений. По умолчанию True.
+            False: чаты остаются непрочитанными, хендлеры получают только последнее сообщение
+            чата за тик (подробнее в docs/chat.md).
+        polling_task (asyncio.Task | None): Фоновая задача `Runner.start_polling`, если она запущена.
+    """
+
     def __init__(
         self,
         gkey: str,
@@ -95,6 +111,15 @@ class FunPayTools:
                 except Exception:
                     pass
             raise
+
+    @property
+    def read_messages(self):
+        """Открывать ли чаты при получении сообщений. False: чаты остаются непрочитанными."""
+        return self.runner._read_messages
+
+    @read_messages.setter
+    def read_messages(self, value: bool) -> None:
+        self.runner._read_messages = value
 
     async def __aenter__(self) -> "FunPayTools":
         # TODO(#20): refresh_cookies_cycle станет типизированным вызовом после аннотации fpx/classes/account
