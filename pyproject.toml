@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fpx-engine"
-version = "0.9.1"
+version = "0.9.2"
 authors = [
   { name="Be My Code", email="gettofarmila@gmail.com" },
 ]
@@ -20,6 +20,7 @@ dependencies = [
     "httpx[http2,socks]>=0.24.0",
     "beautifulsoup4>=4.12.0",
     "aiofiles>=25.1.0",
+    "tzdata>=2024.1; sys_platform == 'win32'",
 ]
 [project.optional-dependencies]
 redis = ["redis[hiredis]>=5.0.0"]
