@@ -1,7 +1,7 @@
 import asyncio
 import re
 from types import TracebackType
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -49,6 +49,12 @@ class FunPayTools:
         proxy: str | httpx.Proxy | None = None,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
+        if storage is not None and not isinstance(cast(object, storage), BaseStorage):
+            raise TypeError(
+                f"storage должен быть экземпляром BaseStorage, получен {type(storage).__name__}: {storage!r}. "
+                "Возможно вы случайно передали в storage лишний аргумент, проверьте инициализацию FunPayTools"
+            )
+        self.storage = storage if storage is not None else MemoryStorage()
         if not gkey:
             raise FpxAuthError("gkey не может быть None.")
         if not GKEY_PATTERN.match(gkey):
