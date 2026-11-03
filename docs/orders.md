@@ -92,7 +92,8 @@ async def refunded(order: types.Order):
 
 ### `await fp.account.order.get_order_details(order_id)`
 
-Полная информация о заказе со страницы `/orders/{id}/`.
+Полная информация о заказе со страницы `/orders/{id}/`
+в объекте Order.
 
 ```python
 order = await fp.account.order.get_order_details("ABC123")
